@@ -19,7 +19,7 @@ export function Header({ stats, isAdmin, setIsAdmin, onShowArchives, showArchive
         <div className="flex flex-col sm:flex-row sm:items-center gap-4">
           <div className="flex items-center gap-3">
             <img 
-              src="/src/assets/images/logo mulus.png" 
+              src="logo mulus.png" 
               alt="Logo Mulus" 
               className="h-9 w-auto object-contain rounded-md" 
               onError={(e) => {
