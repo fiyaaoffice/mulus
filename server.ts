@@ -154,7 +154,8 @@ app.post("/api/reports", async (req, res) => {
     reporterName,
     reporterPin,
     imageUrl,
-    videoUrl
+    videoUrl,
+    authorityCategory
   } = req.body;
 
   if (!title || !lat || !lng || !roadName) {
@@ -184,6 +185,7 @@ app.post("/api/reports", async (req, res) => {
     roadName,
     city: city || "Kota Indonesia",
     province: province || "Provinsi Indonesia",
+    authorityCategory: authorityCategory || "pusat",
     comments: []
   };
 
@@ -289,9 +291,17 @@ app.post("/api/reports/:id/comments", (req, res) => {
   let finalAvatar = "";
 
   if (puprPin === "194507") {
-    finalAuthor = "Kementerian PUPR";
+    finalAuthor = "Pemerintah Pusat (Kementerian PUPR)";
     finalIsOfficial = true;
     finalAvatar = "https://upload.wikimedia.org/wikipedia/commons/4/43/Logo_Pekerjaan_Umum.png";
+  } else if (puprPin === "194508") {
+    finalAuthor = "Pemerintah Provinsi";
+    finalIsOfficial = true;
+    finalAvatar = "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d1/Coat_of_arms_of_Indonesia.svg/640px-Coat_of_arms_of_Indonesia.svg.png";
+  } else if (puprPin === "194509") {
+    finalAuthor = "Pemerintah Kabupaten/Kota";
+    finalIsOfficial = true;
+    finalAvatar = "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d1/Coat_of_arms_of_Indonesia.svg/640px-Coat_of_arms_of_Indonesia.svg.png";
   }
 
   if (!finalAuthor || !text) {
@@ -354,17 +364,12 @@ app.delete("/api/reports/:id", (req, res) => {
   const report = reports[index];
 
   if (!isAdmin) {
-    // 1. Check if PIN matches
-    if (!pin || String(pin).trim() !== String(report.reporterPin).trim()) {
-      return res.status(403).json({ error: "PIN Pelapor salah atau tidak sah. Laporan hanya dapat dihapus oleh pembuat aslinya." });
-    }
+    // Check if PIN matches (make comparisons highly robust against string/number types)
+    const submittedPin = String(pin || '').trim();
+    const storedPin = String(report.reporterPin || '').trim();
 
-    // 2. Check if PUPR has approved/commented
-    const isApprovedOrCommented = report.status !== "pending" || report.comments.some((c: any) => c.isOfficial || c.author === "Kementerian PUPR");
-    if (!isApprovedOrCommented) {
-      return res.status(403).json({ 
-        error: "Laporan belum disetujui atau dikomentari secara resmi oleh Kementerian PUPR. Hubungi pihak PUPR melalui komentar, lalu coba lagi setelah ditanggapi." 
-      });
+    if (!submittedPin || submittedPin !== storedPin) {
+      return res.status(403).json({ error: "PIN Pelapor salah atau tidak sah. Laporan hanya dapat dihapus oleh pembuat aslinya." });
     }
   }
 

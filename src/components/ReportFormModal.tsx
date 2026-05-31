@@ -17,7 +17,104 @@ interface ReportFormModalProps {
     reporterName: string;
     reporterPin: string;
     imageUrl: string;
+    authorityCategory: 'pusat' | 'provinsi' | 'kabupaten';
   }) => void;
+}
+
+export function getSimulatedAddress(lat: number, lng: number): { roadName: string, city: string, province: string, authorityCategory: 'pusat' | 'provinsi' | 'kabupaten' } {
+  // Default fallback
+  let roadName = "Jl. Raya Utama";
+  let city = "Jakarta Pusat";
+  let province = "DKI Jakarta";
+  let authorityCategory: 'pusat' | 'provinsi' | 'kabupaten' = "pusat";
+
+  const absoluteLat = Math.abs(lat);
+  const absoluteLng = Math.abs(lng);
+
+  // Heuristics based on coordinate bounding box
+  if (lat >= -6.8 && lat <= -5.5 && lng >= 106.3 && lng <= 107.5) {
+    // Jakarta Raya and surroundings
+    const roads = ["Jl. Jend. Sudirman", "Jl. Gatot Subroto", "Jl. H.R. Rasuna Said", "Jl. Raya Bogor", "Jl. Margonda Raya", "Jl. Kebon Jeruk Raya"];
+    const cities = ["Jakarta Selatan", "Jakarta Pusat", "Jakarta Barat", "Depok", "Bekasi"];
+    const rIdx = Math.abs(Math.floor(lat * 1000 + lng * 1000)) % roads.length;
+    const cIdx = Math.abs(Math.floor(lat * 500)) % cities.length;
+    roadName = roads[rIdx];
+    city = cities[cIdx];
+    province = "DKI Jakarta";
+  } else if (lat >= -8.2 && lat <= -6.0 && lng >= 107.2 && lng <= 109.0) {
+    // West Java (Bandung, etc)
+    const roads = ["Jl. Lintas Jawa Barat", "Jl. Raya Cipularang Km 90", "Jl. Dr. Djunjunan", "Jl. Ir. H. Juanda", "Jl. Soekarno-Hatta", "Jl. Siliwangi"];
+    roadName = roads[Math.abs(Math.floor(lat * 1000 + lng * 1000)) % roads.length];
+    city = "Bandung";
+    province = "Jawa Barat";
+  } else if (lat >= -8.3 && lat <= -7.2 && lng >= 110.0 && lng <= 111.0) {
+    // Yogyakarta & Solo
+    const roads = ["Jl. Malioboro", "Jl. Ringroad Utara", "Jl. Kaliurang Km 7", "Jl. Raya Jogja-Solo"];
+    roadName = roads[Math.abs(Math.floor(lat * 1000 + lng * 1000)) % roads.length];
+    city = "Sleman";
+    province = "D.I. Yogyakarta";
+  } else if (lat >= -8.8 && lat <= -6.8 && lng >= 111.0 && lng <= 115.0) {
+    // East Java (Surabaya, Malang, etc)
+    const roads = ["Jl. Basuki Rahmat", "Jl. Lintas Pantura Timur", "Jl. Raya Darmo", "Jl. Raya Tretes"];
+    roadName = roads[Math.abs(Math.floor(lat * 1000 + lng * 1000)) % roads.length];
+    city = "Surabaya";
+    province = "Jawa Timur";
+  } else if (lat >= -6.0 && lat <= 6.0 && lng >= 95.0 && lng <= 106.0) {
+    // Sumatra
+    const roads = ["Jl. Lintas Sumatera Km 128", "Jl. Sisingamangaraja", "Jl. Trans Sumatera Buah", "Jl. Angkatan 45"];
+    roadName = roads[Math.abs(Math.floor(lat * 1000 + lng * 1000)) % roads.length];
+    city = "Medan";
+    province = "Sumatera Utara";
+  } else if (lat >= -4.0 && lat <= 4.0 && lng >= 109.0 && lng <= 119.0) {
+    // Kalimantan
+    const roads = ["Jl. Trans Kalimantan Km 40", "Jl. Ahmad Yani", "Jl. Jenderal Sudirman"];
+    roadName = roads[Math.abs(Math.floor(lat * 1000 + lng * 1000)) % roads.length];
+    city = "Samarinda";
+    province = "Kalimantan Timur";
+  } else if (lat >= -8.5 && lat <= 2.0 && lng >= 119.0 && lng <= 126.5) {
+    // Sulawesi
+    const roads = ["Jl. Lintas Trans-Sulawesi", "Jl. AP Pettarani", "Jl. Boulevard"];
+    roadName = roads[Math.abs(Math.floor(lat * 1000 + lng * 1000)) % roads.length];
+    city = "Makassar";
+    province = "Sulawesi Selatan";
+  } else if (lat >= -9.0 && lat <= -8.0 && lng >= 114.0 && lng <= 116.0) {
+    // Bali
+    const roads = ["Jl. Sunset Road", "Jl. Bypass Ngurah Rai", "Jl. Raya Ubud"];
+    roadName = roads[Math.abs(Math.floor(lat * 1000 + lng * 1000)) % roads.length];
+    city = "Badung";
+    province = "Bali";
+  }
+
+  // Now calculate smart wewenang based on road keywords
+  const nameLower = roadName.toLowerCase();
+  if (
+    nameLower.includes('nasional') || 
+    nameLower.includes('lintas') || 
+    nameLower.includes('tol') || 
+    nameLower.includes('bypass') || 
+    nameLower.includes('by pass') || 
+    nameLower.includes('pantura') || 
+    nameLower.includes('trans') || 
+    nameLower.includes('negara') ||
+    nameLower.includes('sudirman') ||
+    nameLower.includes('gatot subroto') ||
+    nameLower.includes('thamrin')
+  ) {
+    authorityCategory = 'pusat';
+  } else if (
+    nameLower.includes('provinsi') || 
+    nameLower.includes('prov') || 
+    nameLower.includes('raya') || 
+    nameLower.includes('arteri') ||
+    nameLower.includes('lingkar') ||
+    nameLower.includes('utama')
+  ) {
+    authorityCategory = 'provinsi';
+  } else {
+    authorityCategory = 'kabupaten';
+  }
+
+  return { roadName, city, province, authorityCategory };
 }
 
 export function ReportFormModal({ initialLat, initialLng, onClose, onSubmit }: ReportFormModalProps) {
@@ -29,32 +126,146 @@ export function ReportFormModal({ initialLat, initialLng, onClose, onSubmit }: R
   const [city, setCity] = useState('');
   const [province, setProvince] = useState('');
   const [severity, setSeverity] = useState<'low' | 'medium' | 'critical'>('medium');
+  const [authorityCategory, setAuthorityCategory] = useState<'pusat' | 'provinsi' | 'kabupaten'>('pusat');
   const [reporterName, setReporterName] = useState('');
   const [reporterPin, setReporterPin] = useState(() => Math.floor(1000 + Math.random() * 9000).toString());
+  const [isGeocoding, setIsGeocoding] = useState(false);
   
-  // Custom smart image picker
-  const [selectedImagePreset, setSelectedImagePreset] = useState<string>('preset1');
+  // Custom smart image picker (presets removed, always 'custom')
+  const [selectedImagePreset, setSelectedImagePreset] = useState<string>('custom');
   const [customImageUrl, setCustomImageUrl] = useState<string>('');
 
-  // Preset Realistic Potholes we created / configured
-  const presetImages = {
-    preset1: {
-      name: 'Lubang Perkotaan (Jakarta)',
-      url: '/src/assets/images/pothole_city_png_1780109559191.png'
-    },
-    preset2: {
-      name: 'Pekuburan Lubang Pedesaan',
-      url: '/src/assets/images/pothole_rural_png_1780109577503.png'
-    },
-    preset3: {
-      name: 'Retakan Aspal Hujan (Picsum)',
-      url: 'https://picsum.photos/seed/pothole_rain/600/600'
-    }
-  };
-
+  // Handle coordinate edits: auto-fill address when lat / lng changes
   useEffect(() => {
-    if (initialLat !== null) setLat(Number(initialLat));
-    if (initialLng !== null) setLng(Number(initialLng));
+    let active = true;
+    if (lat && lng) {
+      // Immediate simulated fallback so the form is never blank
+      const mapped = getSimulatedAddress(Number(lat), Number(lng));
+      setRoadName(mapped.roadName);
+      setCity(mapped.city);
+      setProvince(mapped.province);
+      setAuthorityCategory(mapped.authorityCategory);
+
+      // Perform real Nominatim reverse geocoding for 100% precision
+      const fetchReverseGeocode = async () => {
+        setIsGeocoding(true);
+        try {
+          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`);
+          if (!res.ok) throw new Error("Gagal mengambil data geocoding");
+          const data = await res.json();
+          if (active && data && data.address) {
+            const addr = data.address;
+            
+            // Extract road / street name
+            const road = addr.road || addr.street || addr.footway || addr.path || addr.pedestrian || addr.suburb || addr.neighbourhood || addr.village || mapped.roadName;
+            
+            // Extract city / kabupaten
+            const cityOrKab = addr.city || addr.town || addr.municipality || addr.city_district || addr.county || addr.regency || mapped.city;
+            
+            // Extract province
+            const prov = addr.state || addr.region || mapped.province;
+
+            setRoadName(road);
+            setCity(cityOrKab);
+            setProvince(prov);
+
+            // Re-evaluate authority category based on geocoded road name
+            const nameLower = road.toLowerCase();
+            let authCat: 'pusat' | 'provinsi' | 'kabupaten' = 'kabupaten';
+            if (
+              nameLower.includes('nasional') || 
+              nameLower.includes('lintas') || 
+              nameLower.includes('tol') || 
+              nameLower.includes('bypass') || 
+              nameLower.includes('by pass') || 
+              nameLower.includes('pantura') || 
+              nameLower.includes('trans') || 
+              nameLower.includes('negara') ||
+              nameLower.includes('sudirman') ||
+              nameLower.includes('gatot subroto') ||
+              nameLower.includes('thamrin')
+            ) {
+              authCat = 'pusat';
+            } else if (
+              nameLower.includes('provinsi') || 
+              nameLower.includes('prov') || 
+              nameLower.includes('raya') || 
+              nameLower.includes('arteri') ||
+              nameLower.includes('lingkar') ||
+              nameLower.includes('utama')
+            ) {
+              authCat = 'provinsi';
+            }
+            setAuthorityCategory(authCat);
+          }
+        } catch (err) {
+          console.error("Nominatim reverse geocode error:", err);
+        } finally {
+          if (active) setIsGeocoding(false);
+        }
+      };
+
+      const debounceTimer = setTimeout(() => {
+        fetchReverseGeocode();
+      }, 700);
+
+      return () => {
+        active = false;
+        clearTimeout(debounceTimer);
+      };
+    }
+  }, [lat, lng]);
+
+  // Adjust authority category reactively when roadName is edited manually
+  useEffect(() => {
+    const nameLower = roadName.toLowerCase();
+    
+    // Explicit string matching matches PUPR/Authority rule
+    if (
+      nameLower.includes('nasional') || 
+      nameLower.includes('lintas') || 
+      nameLower.includes('tol') || 
+      nameLower.includes('bypass') || 
+      nameLower.includes('by pass') || 
+      nameLower.includes('pantura') || 
+      nameLower.includes('trans') || 
+      nameLower.includes('negara') ||
+      nameLower.includes('sudirman') ||
+      nameLower.includes('gatot subroto') ||
+      nameLower.includes('thamrin')
+    ) {
+      setAuthorityCategory('pusat');
+    } else if (
+      nameLower.includes('provinsi') || 
+      nameLower.includes('prov') || 
+      nameLower.includes('raya') || 
+      nameLower.includes('arteri') ||
+      nameLower.includes('lingkar') ||
+      nameLower.includes('utama')
+    ) {
+      setAuthorityCategory('provinsi');
+    } else if (
+      nameLower.includes('kabupaten') || 
+      nameLower.includes('kab') || 
+      nameLower.includes('kota') || 
+      nameLower.includes('kecamatan') || 
+      nameLower.includes('desa') || 
+      nameLower.includes('kelurahan') || 
+      nameLower.includes('gang') || 
+      nameLower.includes('perum') || 
+      nameLower.includes('perumahan') || 
+      nameLower.includes('dusun')
+    ) {
+      setAuthorityCategory('kabupaten');
+    }
+  }, [roadName]);
+
+  // Synchronise coordinate points when clicked on map to provide seamless addresses
+  useEffect(() => {
+    if (initialLat !== null && initialLng !== null) {
+      setLat(Number(initialLat));
+      setLng(Number(initialLng));
+    }
   }, [initialLat, initialLng]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -79,9 +290,8 @@ export function ReportFormModal({ initialLat, initialLng, onClose, onSubmit }: R
     e.preventDefault();
     if (!title || !roadName || !city || !province) return;
 
-    const finalImageUrl = selectedImagePreset === 'custom' && customImageUrl
-      ? customImageUrl 
-      : presetImages[selectedImagePreset as keyof typeof presetImages]?.url || presetImages.preset1.url;
+    // Use a relevant fallback image of simulated pothole if nothing is supplied
+    const finalImageUrl = customImageUrl || 'https://picsum.photos/seed/mulus_pothole/600/600';
 
     onSubmit({
       title,
@@ -94,7 +304,8 @@ export function ReportFormModal({ initialLat, initialLng, onClose, onSubmit }: R
       severity,
       reporterName: reporterName || 'Warga Anonim',
       reporterPin,
-      imageUrl: finalImageUrl
+      imageUrl: finalImageUrl,
+      authorityCategory
     });
   };
 
@@ -177,9 +388,17 @@ export function ReportFormModal({ initialLat, initialLng, onClose, onSubmit }: R
 
           {/* Coordinates (Prefilled by map click or custom input) */}
           <div className="rounded-xl bg-neutral-50 border border-neutral-150 p-3.5">
-            <div className="flex items-center gap-1.5 text-[11px] text-neutral-500 font-bold font-mono tracking-wide uppercase mb-2">
-              <MapPin className="h-3.5 w-3.5 text-black" />
-              Titik Koordinat Lokasi (Akurat Seperti Google Maps)
+            <div className="flex items-center justify-between gap-2 mb-2">
+              <div className="flex items-center gap-1.5 text-[11px] text-neutral-500 font-bold font-mono tracking-wide uppercase">
+                <MapPin className="h-3.5 w-3.5 text-black" />
+                Titik Koordinat Lokasi (Akurat Seperti Google Maps)
+              </div>
+              {isGeocoding && (
+                <div className="flex items-center gap-1.5 text-[10px] text-amber-600 font-bold animate-pulse font-sans">
+                  <div className="h-2 w-2 bg-amber-500 rounded-full animate-ping"></div>
+                  <span>Sedang Melacak Alamat 100% Akurat...</span>
+                </div>
+              )}
             </div>
             <div className="grid grid-cols-2 gap-3 text-xs">
               <div>
@@ -210,6 +429,36 @@ export function ReportFormModal({ initialLat, initialLng, onClose, onSubmit }: R
             <p className="text-[9px] text-neutral-400 mt-2">
               * Anda dapat memasukkan nilai koordinat numerik secara manual dengan tingkat presisi desimal tinggi, atau langsung menekan salah satu titik pada peta.
             </p>
+          </div>
+
+          {/* Classification of Authority Category (Wewenang Jalan) */}
+          <div className="p-3.5 bg-neutral-50 rounded-xl border border-neutral-200">
+            <label className="block text-[11px] font-bold text-neutral-500 uppercase tracking-wider mb-2 font-mono">
+              Kategori Penanggung Jawab Jalan (Wewenang)
+            </label>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+              {[
+                { value: 'pusat', title: 'Pusat (PUPR)', desc: 'Jalan nasional & lintas provinsi' },
+                { value: 'provinsi', title: 'Provinsi', desc: 'Jalan utama dalam provinsi' },
+                { value: 'kabupaten', title: 'Kabupaten/Kota', desc: 'Jalan kota & kecamatan' }
+              ].map((item) => (
+                <button
+                  key={item.value}
+                  type="button"
+                  onClick={() => setAuthorityCategory(item.value as any)}
+                  className={`p-2.5 text-left rounded-lg border cursor-pointer transition flex flex-col justify-start text-xs ${
+                    authorityCategory === item.value
+                      ? 'bg-black text-white border-black shadow-xs'
+                      : 'bg-white text-neutral-800 border-neutral-200 hover:bg-neutral-50'
+                  }`}
+                >
+                  <span className="font-extrabold block">{item.title}</span>
+                  <span className={`text-[9px] mt-0.5 block leading-tight ${authorityCategory === item.value ? 'text-neutral-300' : 'text-neutral-500'}`}>
+                    {item.desc}
+                  </span>
+                </button>
+              ))}
+            </div>
           </div>
 
           {/* Severity, Reporter, and Post PIN */}
@@ -266,41 +515,12 @@ export function ReportFormModal({ initialLat, initialLng, onClose, onSubmit }: R
             </div>
           </div>
 
-          {/* Photo upload smart presets & local file device upload */}
+          {/* Foto / Media Kerusakan */}
           <div>
             <label className="block text-[11px] font-bold text-neutral-500 uppercase tracking-wider mb-2 font-mono">Bukti Foto / Media Kerusakan</label>
-            <div className="grid grid-cols-3 gap-2.5">
-              {Object.entries(presetImages).map(([key, item]) => (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => setSelectedImagePreset(key)}
-                  className={`flex flex-col items-center p-2 rounded-xl border cursor-pointer text-center relative overflow-hidden transition group ${
-                    selectedImagePreset === key
-                      ? 'border-black bg-neutral-900 text-white'
-                      : 'border-neutral-200 bg-white hover:border-neutral-400 text-neutral-800'
-                  }`}
-                >
-                  <div className="h-10 w-full rounded-md overflow-hidden bg-neutral-100 mb-1.5">
-                    <img
-                      src={item.url}
-                      alt={item.name}
-                      referrerPolicy="no-referrer"
-                      className="h-full w-full object-cover"
-                    />
-                  </div>
-                  <span className="text-[9px] font-bold truncate w-full">{item.name}</span>
-                  {selectedImagePreset === key && (
-                    <div className="absolute top-1 right-1 h-3.5 w-3.5 bg-black text-white rounded-full flex items-center justify-center border border-white">
-                      <Check className="h-2 w-2 stroke-[3]" />
-                    </div>
-                  )}
-                </button>
-              ))}
-            </div>
 
             {/* Upload File & Custom URL Options */}
-            <div className="mt-3 bg-zinc-50 border border-black/5 p-3 rounded-xl space-y-2.5">
+            <div className="bg-zinc-50 border border-black/5 p-3 rounded-xl space-y-2.5">
               <div className="flex flex-wrap items-center gap-2">
                 {/* File Uploader Button */}
                 <label className="flex items-center gap-1.5 py-1.5 px-3 rounded-lg text-[10px] font-bold cursor-pointer transition bg-black hover:bg-neutral-800 text-white shadow-xs">

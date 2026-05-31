@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Search, MapPin, ThumbsUp, MessageSquare, Flame, CheckCircle, ChevronRight, Archive, Clock, AlertTriangle } from 'lucide-react';
+import { Search, MapPin, ThumbsUp, MessageSquare, Flame, CheckCircle, ChevronRight, Archive, Clock, AlertTriangle, X } from 'lucide-react';
 import { PotholeReport } from '../types';
 
 interface ActiveFeedProps {
@@ -8,9 +8,10 @@ interface ActiveFeedProps {
   onSelect: (id: string) => void;
   onUpvote: (id: string, e: React.MouseEvent) => void;
   showArchivesOnly: boolean;
+  onCloseMobile?: () => void;
 }
 
-export function ActiveFeed({ reports, selectedId, onSelect, onUpvote, showArchivesOnly }: ActiveFeedProps) {
+export function ActiveFeed({ reports, selectedId, onSelect, onUpvote, showArchivesOnly, onCloseMobile }: ActiveFeedProps) {
   const [search, setSearch] = useState('');
   const [filterSeverity, setFilterSeverity] = useState<string>('all');
 
@@ -49,6 +50,29 @@ export function ActiveFeed({ reports, selectedId, onSelect, onUpvote, showArchiv
         return (
           <span className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-200 bg-zinc-50 px-2.5 py-1 font-mono text-[9px] font-extrabold text-zinc-600 uppercase tracking-widest">
             <Clock className="h-3 w-3" /> Ringan
+          </span>
+        );
+    }
+  };
+
+  const getAuthorityBadge = (category?: string) => {
+    switch (category) {
+      case 'provinsi':
+        return (
+          <span className="inline-flex items-center rounded-lg border border-indigo-200 bg-indigo-50/50 px-2 py-0.5 font-sans font-bold text-[9px] text-indigo-700 tracking-wider">
+            Provinsi
+          </span>
+        );
+      case 'kabupaten':
+        return (
+          <span className="inline-flex items-center rounded-lg border border-teal-200 bg-teal-50/50 px-2 py-0.5 font-sans font-bold text-[9px] text-teal-700 tracking-wider">
+            Kab/Kota
+          </span>
+        );
+      default:
+        return (
+          <span className="inline-flex items-center rounded-lg border border-sky-200 bg-sky-50/50 px-2 py-0.5 font-sans font-bold text-[9px] text-sky-700 tracking-wider">
+            Pusat (PUPR)
           </span>
         );
     }
@@ -95,7 +119,19 @@ export function ActiveFeed({ reports, selectedId, onSelect, onUpvote, showArchiv
               </>
             )}
           </h2>
-          <span className="font-mono text-[10px] font-bold text-black/30 tracking-wider">LRP-IDN</span>
+          <div className="flex items-center gap-2.5">
+            <span className="font-mono text-[10px] font-bold text-black/30 tracking-wider">LRP-IDN</span>
+            {onCloseMobile && (
+              <button
+                type="button"
+                onClick={onCloseMobile}
+                className="md:hidden h-8 w-8 rounded-full border border-neutral-200 bg-neutral-50 flex items-center justify-center text-neutral-500 hover:text-black transition cursor-pointer"
+                title="Tutup menu"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Search Input styled as bento inputs */}
@@ -105,7 +141,7 @@ export function ActiveFeed({ reports, selectedId, onSelect, onUpvote, showArchiv
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Cari lokasi, jalan..."
+            placeholder="Cari laporan, jalan..."
             className="w-full rounded-full border border-black/10 bg-zinc-100 px-4 py-2.5 pl-10 font-sans text-xs outline-none transition focus:border-black/20 focus:bg-white placeholder:text-black/30 text-black font-semibold"
           />
         </div>
@@ -165,6 +201,7 @@ export function ActiveFeed({ reports, selectedId, onSelect, onUpvote, showArchiv
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1.5 mb-2 flex-wrap">
                     {getSeverityBadge(report.severity)}
+                    {getAuthorityBadge(report.authorityCategory)}
                     {getStatusBadge(report.status)}
                   </div>
                   <h3 className="font-sans font-bold tracking-tight text-neutral-900 text-xs truncate group-hover:text-black">

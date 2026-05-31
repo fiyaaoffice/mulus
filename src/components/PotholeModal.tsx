@@ -36,7 +36,19 @@ export function PotholeModal({
     e.preventDefault();
     if (isPuprActive && !puprPinInput) return;
     
-    const finalAuthor = isPuprActive ? 'Kementerian PUPR' : commentName;
+    let finalAuthor = commentName;
+    if (isPuprActive) {
+      if (puprPinInput === '194507') {
+        finalAuthor = 'Pemerintah Pusat (Kementerian PUPR)';
+      } else if (puprPinInput === '194508') {
+        finalAuthor = 'Pemerintah Provinsi';
+      } else if (puprPinInput === '194509') {
+        finalAuthor = 'Pemerintah Kabupaten/Kota';
+      } else {
+        finalAuthor = 'Pemerintah Resmi';
+      }
+    }
+
     if (!finalAuthor || !commentText) return;
     
     onAddComment(report.id, finalAuthor, commentText, isPuprActive || isAdmin, isPuprActive ? puprPinInput : undefined);
@@ -55,27 +67,44 @@ export function PotholeModal({
     }
   };
 
+  const getAuthorityCategoryBadge = (cat?: string) => {
+    switch (cat) {
+      case 'provinsi':
+        return <span className="rounded-md border border-indigo-350 bg-indigo-50 text-indigo-700 px-2.5 py-1 text-xs font-bold uppercase tracking-wider font-mono">PEMPROV</span>;
+      case 'kabupaten':
+        return <span className="rounded-md border border-teal-350 bg-teal-50 text-teal-700 px-2.5 py-1 text-xs font-bold uppercase tracking-wider font-mono">PEMKAB / PEMKOT</span>;
+      default:
+        return <span className="rounded-md border border-sky-350 bg-sky-50 text-sky-700 px-2.5 py-1 text-xs font-bold uppercase tracking-wider font-mono">PUSAT (PUPR)</span>;
+    }
+  };
+
   const getStatusBanner = (status: string) => {
+    const authorityName = report.authorityCategory === 'provinsi' 
+      ? 'Pemerintah Provinsi' 
+      : report.authorityCategory === 'kabupaten' 
+        ? 'Pemerintah Kabupaten/Kota' 
+        : 'Pemerintah Pusat (Kementerian PUPR)';
+
     switch (status) {
       case 'resolved':
         return (
           <div className="flex items-center gap-2 bg-neutral-900 text-white px-3 py-2 rounded-xl border border-neutral-850 shadow-sm font-sans mb-4 text-xs font-semibold">
             <Check className="h-4 w-4 bg-white text-black rounded-full p-0.5" />
-            <span>Jalan Berlubang Berhasil Diperbaiki oleh Kementerian PUPR</span>
+            <span>Jalan Berlubang Berhasil Diperbaiki oleh {authorityName}</span>
           </div>
         );
       case 'repairing':
         return (
           <div className="flex items-center gap-2 bg-neutral-100 text-neutral-850 px-3 py-2 rounded-xl border border-neutral-200 font-sans mb-4 text-xs font-semibold">
             <Hammer className="h-4 w-4 text-black animate-spin" />
-            <span className="text-neutral-900">Sedang Ditangani oleh Satuan Kerja Dinas Pekerjaan Umum</span>
+            <span className="text-neutral-900">Sedang Ditangani oleh {authorityName}</span>
           </div>
         );
       default:
         return (
           <div className="flex items-center gap-2 bg-white text-neutral-600 px-3 py-2 rounded-xl border border-neutral-200 font-sans mb-4 text-xs font-semibold">
             <Clock className="h-4 w-4 text-neutral-400" />
-            <span>Mengantre pada Jadual Pemantauan Anggaran Sipil</span>
+            <span>Mengantre pada Jadual Pemantauan Anggaran Sipil ({authorityName})</span>
           </div>
         );
     }
@@ -89,6 +118,7 @@ export function PotholeModal({
           <div>
             <div className="flex items-center gap-2 mb-2 flex-wrap">
               {getSeverityLabel(report.severity)}
+              {getAuthorityCategoryBadge(report.authorityCategory)}
               <span className="text-[10px] font-mono text-neutral-400 uppercase tracking-widest">{report.id}</span>
             </div>
             <h2 className="font-extrabold tracking-tight text-neutral-950 text-lg leading-tight">
@@ -362,7 +392,7 @@ export function PotholeModal({
                   </div>
 
                   {/* PUPR official verification option */}
-                  <div className="flex items-center justify-between bg-zinc-50 border border-black/5 rounded-xl p-2.5 text-[11px]">
+                  <div className="flex flex-col bg-zinc-50 border border-black/5 rounded-xl p-3 text-[11px] space-y-2.5">
                     <label className="flex items-center gap-1.5 font-bold text-neutral-700 cursor-pointer select-none">
                       <input
                         type="checkbox"
@@ -373,9 +403,9 @@ export function PotholeModal({
                         }}
                         className="rounded border-zinc-300 text-amber-600 focus:ring-amber-500 h-3.5 w-3.5"
                       />
-                      <span className="flex items-center gap-1">
-                        Komentar sebagai Kementerian PUPR Resmi
-                        <span className="inline-flex items-center justify-center h-3 w-3 rounded-full bg-blue-500 text-white p-0.5" title="Terverifikasi Resmi">
+                      <span className="flex items-center gap-1 font-bold">
+                        Komentar Resmi Otoritas Jalan Raya
+                        <span className="inline-flex items-center justify-center h-3.5 w-3.5 rounded-full bg-blue-500 text-white p-0.5" title="Terverifikasi Resmi">
                           <svg viewBox="0 0 24 24" fill="currentColor" className="h-2 w-2">
                             <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
                           </svg>
@@ -384,17 +414,37 @@ export function PotholeModal({
                     </label>
 
                     {isPuprActive && (
-                      <div className="flex items-center gap-1.5">
-                        <span className="font-mono font-bold text-amber-600">PIN VERIFIKASI:</span>
-                        <input
-                          type="password"
-                          required
-                          maxLength={6}
-                          value={puprPinInput}
-                          onChange={(e) => setPuprPinInput(e.target.value)}
-                          placeholder="Pin 194507"
-                          className="w-24 rounded border border-neutral-300 bg-white px-2 py-0.5 text-center font-mono font-bold text-xs outline-none focus:border-amber-500 placeholder:text-[9.5px]"
-                        />
+                      <div className="space-y-2 border-t border-neutral-200/60 pt-2 bg-neutral-100/30 p-2 rounded-lg">
+                        <p className="text-[10px] text-neutral-500 leading-tight">
+                          Pilih wewenang dan masukkan PIN verifikasi resmi untuk mensinkronisasi komentar ini sebagai rujukan instansi pemerintah terkait.
+                        </p>
+                        <div className="flex flex-wrap items-center justify-between gap-2.5">
+                          {isAdmin ? (
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="font-bold text-neutral-600">Opsi PIN:</span>
+                              <span className="bg-sky-50 border border-sky-200 text-sky-850 px-1.5 py-0.5 rounded font-mono text-[9px]" title="Pemerintah Pusat">194507 (Pusat)</span>
+                              <span className="bg-indigo-50 border border-indigo-200 text-indigo-850 px-1.5 py-0.5 rounded font-mono text-[9px]" title="Pemerintah Provinsi">194508 (Provinsi)</span>
+                              <span className="bg-teal-50 border border-teal-200 text-teal-850 px-1.5 py-0.5 rounded font-mono text-[9px]" title="Pemerintah Kabupaten">194509 (Kabupaten)</span>
+                            </div>
+                          ) : (
+                            <div className="text-[10px] text-neutral-400 italic">
+                              Hanya untuk akun instansi berwenang terkait
+                            </div>
+                          )}
+
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-mono font-bold text-amber-600 uppercase text-[10px]">PIN:</span>
+                            <input
+                              type="password"
+                              required
+                              maxLength={6}
+                              value={puprPinInput}
+                              onChange={(e) => setPuprPinInput(e.target.value)}
+                              placeholder="Ketik PIN"
+                              className="w-24 rounded border border-neutral-300 bg-white px-2 py-0.5 text-center font-mono font-bold text-xs outline-none focus:border-amber-500 placeholder:text-[9.5px]"
+                            />
+                          </div>
+                        </div>
                       </div>
                     )}
                   </div>

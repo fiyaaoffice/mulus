@@ -25,6 +25,7 @@ export interface PotholeReport {
   roadName: string;
   city: string;
   province: string;
+  authorityCategory?: 'pusat' | 'provinsi' | 'kabupaten';
   aiAudit?: {
     summary: string;
     trafficImpact: string;

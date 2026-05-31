@@ -4,12 +4,15 @@ import { ActiveFeed } from './components/ActiveFeed';
 import { IndonesiaMap } from './components/IndonesiaMap';
 import { PotholeModal } from './components/PotholeModal';
 import { ReportFormModal } from './components/ReportFormModal';
+import { UserGuideModal } from './components/UserGuideModal';
 import { PotholeReport, Statistics } from './types';
 import { AnimatePresence, motion } from 'motion/react';
 import { CheckCircle, AlertTriangle, Info, Plus, ChevronRight, HelpCircle } from 'lucide-react';
 
 export default function App() {
   const [reports, setReports] = useState<PotholeReport[]>([]);
+  const [showGuide, setShowGuide] = useState(false);
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [stats, setStats] = useState<Statistics>({
     totalActive: 0,
     totalRepaired: 0,
@@ -37,6 +40,22 @@ export default function App() {
   // Loading and Error States
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Toast notifications state
+  const [notification, setNotification] = useState<{
+    message: string;
+    type: 'success' | 'error' | 'info';
+  } | null>(null);
+
+  // Auto-dismiss notification after 5 seconds
+  useEffect(() => {
+    if (notification) {
+      const timer = setTimeout(() => {
+        setNotification(null);
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [notification]);
 
   // Initialize and Fetch Reports on Boot
   const fetchReports = async () => {
@@ -84,6 +103,12 @@ export default function App() {
       // Save for PIN Overlay Success feedback
       setLastCreatedPin(newReport.reporterPin || formData.reporterPin || '');
       setLastCreatedTitle(newReport.title || '');
+      
+      // Set success notification
+      setNotification({
+        message: "Postingan laporan jalan berlubang berhasil terkirim ke sistem!",
+        type: "success"
+      });
       
       // Update local state list and stats
       await fetchReports();
@@ -183,6 +208,7 @@ export default function App() {
   // Delete report completely (Reporter action tool)
   const handleDeleteReport = async (id: string, pin?: string) => {
     try {
+      setLoading(true);
       const url = pin ? `/api/reports/${id}?pin=${encodeURIComponent(pin)}&isAdmin=${isAdmin}` : `/api/reports/${id}?isAdmin=${isAdmin}`;
       const res = await fetch(url, { method: 'DELETE' });
       const data = await res.json();
@@ -190,6 +216,13 @@ export default function App() {
       if (res.ok) {
         setSelectedId(null);
         await fetchReports();
+        
+        // Show success toast for deletion
+        setNotification({
+          message: "Laporan jalan berlubang berhasil dihapus!",
+          type: "success"
+        });
+        
         return { success: true };
       } else {
         return { success: false, error: data.error || "Gagal menghapus laporan." };
@@ -197,6 +230,8 @@ export default function App() {
     } catch (err: any) {
       console.error("Gagal menghapus laporan jalan berlubang:", err);
       return { success: false, error: err.message };
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -217,19 +252,34 @@ export default function App() {
         setIsAdmin={setIsAdmin}
         onShowArchives={handleShowArchives}
         showArchives={showArchives}
+        onOpenGuide={() => setShowGuide(true)}
       />
 
       {/* Main Workbench Layout: Map and Sidebar styled with Bento Grid curves */}
-      <div className="flex-1 flex p-6 gap-6 bg-zinc-50 overflow-hidden relative">
+      <div className="flex-1 flex p-2.5 sm:p-4 md:p-6 gap-3 md:gap-6 bg-zinc-50 overflow-hidden relative">
         
+        {/* Shaded backdrop behind the mobile sidebar menu */}
+        {isMobileSidebarOpen && (
+          <div
+            onClick={() => setIsMobileSidebarOpen(false)}
+            className="md:hidden fixed inset-0 z-30 bg-black/45 backdrop-blur-xs animate-fadeIn transition-opacity duration-300"
+          />
+        )}
+
         {/* Left Side: Interactive Collaborative Sidebar in a Bento Card */}
-        <div className="w-full md:w-[380px] shrink-0 h-full flex flex-col z-20 shadow-xl md:shadow-none md:relative absolute md:translate-x-0 -translate-x-full md:block border border-black/10 rounded-[2rem] bg-white overflow-hidden transition-transform duration-355">
+        <div className={`w-[85%] max-w-[340px] md:w-[380px] shrink-0 h-full flex flex-col z-40 md:z-20 md:relative fixed md:top-auto md:bottom-auto md:left-auto top-2.5 bottom-2.5 left-2.5 md:shadow-none shadow-2xl transition-transform duration-300 ${
+          isMobileSidebarOpen ? 'translate-x-[0px]' : '-translate-x-[115%] md:translate-x-0'
+        } border border-black/10 rounded-[2rem] bg-white overflow-hidden`}>
           <ActiveFeed
             reports={reports}
             selectedId={selectedId}
-            onSelect={(id) => setSelectedId(id)}
+            onSelect={(id) => {
+              setSelectedId(id);
+              setIsMobileSidebarOpen(false); // Auto close sidebar on select to focus map
+            }}
             onUpvote={(id, e) => handleUpvote(id, e)}
             showArchivesOnly={showArchives}
+            onCloseMobile={() => setIsMobileSidebarOpen(false)}
           />
         </div>
 
@@ -243,29 +293,28 @@ export default function App() {
             isAdmin={isAdmin}
           />
 
-          {/* Map Overlay Button (Only on Mobile to expand feed) */}
-          <div className="absolute top-6 left-6 z-10 md:hidden">
+          {/* Map Overlay Button (Only on Mobile to expand feed - positioned at bottom left for absolute thumb reachability) */}
+          <div className="absolute bottom-5 left-5 z-20 md:hidden font-sans">
             <button
-              onClick={() => {
-                const sidebar = document.querySelector('.shrink-0');
-                if (sidebar) {
-                  sidebar.classList.toggle('-translate-x-full');
-                }
-              }}
-              className="bg-black text-white p-3 px-5 rounded-full shadow-lg font-sans text-xs font-bold cursor-pointer transition active:scale-95"
+              onClick={() => setIsMobileSidebarOpen(true)}
+              className="bg-black hover:bg-neutral-900 border border-neutral-800 text-white font-extrabold py-3 px-4.5 rounded-2xl flex items-center gap-2 shadow-2xl active:scale-95 transition text-[11px] uppercase tracking-wider cursor-pointer"
             >
-              Lihat Laporan ({reports.filter(r => showArchives ? r.status === 'resolved' : r.status !== 'resolved').length})
+              <span>Daftar Laporan</span>
+              <span className="bg-neutral-800 border border-neutral-700 text-white text-[9px] px-1.5 py-0.5 rounded-md font-bold">
+                {reports.filter(r => showArchives ? r.status === 'resolved' : r.status !== 'resolved').length}
+              </span>
             </button>
           </div>
 
           {/* Center Pothole Register Trigger (Dashed style bento button or premium floating bento action) */}
-          <div className="absolute bottom-6 right-6 z-20 flex flex-col items-end gap-2 text-sans">
+          <div className="absolute bottom-5 right-5 z-20 flex flex-col items-end gap-2 font-sans">
             <button
               onClick={() => setIsFormOpen(true)}
-              className="bg-black hover:bg-neutral-900 text-white font-extrabold p-4 px-6 rounded-2xl flex items-center gap-2.5 shadow-xl hover:scale-102 active:scale-98 transition duration-150 border border-neutral-800 cursor-pointer text-xs"
+              className="bg-black hover:bg-neutral-900 text-white font-extrabold p-3 sm:p-4 px-4.5 sm:px-6 rounded-2xl flex items-center gap-2 shadow-2xl hover:scale-102 active:scale-98 transition duration-150 border border-neutral-800 cursor-pointer text-xs"
             >
               <Plus className="h-4.5 w-4.5 stroke-[3]" />
-              <span>Laporkan Jalan Berlubang</span>
+              <span className="hidden xs:inline">Laporkan Jalan Berlubang</span>
+              <span className="xs:hidden">Lapor Lubang</span>
             </button>
           </div>
         </div>
@@ -330,6 +379,11 @@ export default function App() {
           />
         )}
 
+        {/* User Guide Tutorial Modal */}
+        {showGuide && (
+          <UserGuideModal onClose={() => setShowGuide(false)} />
+        )}
+
         {/* Success PIN Alert overlay */}
         {lastCreatedPin && (
           <div className="fixed inset-0 z-[1250] flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs font-sans animate-fadeIn">
@@ -372,6 +426,59 @@ export default function App() {
           </div>
         )}
       </AnimatePresence>
+
+      {/* Floating System toast notifications */}
+      <AnimatePresence>
+        {notification && (
+          <motion.div
+            initial={{ opacity: 0, y: -80, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -20, scale: 0.95 }}
+            transition={{ type: 'spring', damping: 25, stiffness: 350 }}
+            className="fixed top-24 left-1/2 -translate-x-1/2 z-[2050] max-w-sm w-full px-4"
+          >
+            <div className={`p-4 rounded-2xl shadow-2xl border flex items-center gap-3.5 ${
+              notification.type === 'success' 
+                ? 'bg-neutral-900 border-neutral-800 text-white shadow-emerald-950/20' 
+                : 'bg-neutral-900 border-neutral-800 text-white'
+            }`}>
+              <div className="h-8 w-8 rounded-full bg-emerald-500 text-white flex items-center justify-center shrink-0">
+                <CheckCircle className="h-4 w-4 stroke-[3]" />
+              </div>
+              <div className="flex-1">
+                <h4 className="text-[10px] font-bold font-mono uppercase tracking-widest text-neutral-400">
+                  Sukses Sistem
+                </h4>
+                <p className="text-xs font-bold mt-0.5 leading-snug">{notification.message}</p>
+              </div>
+              <button 
+                onClick={() => setNotification(null)}
+                className="text-neutral-400 hover:text-white font-extrabold text-xs cursor-pointer px-1 py-0.5"
+              >
+                ✕
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Dynamic Processing Overlay Loader */}
+      {loading && (
+        <div className="fixed inset-0 z-[2000] flex flex-col items-center justify-center bg-black/60 backdrop-blur-xs font-sans">
+          <div className="bg-white px-6 py-5 rounded-2xl shadow-2xl border border-neutral-200/80 flex flex-col items-center gap-3.5 max-w-xs w-full text-center animate-fadeIn">
+            <div className="relative flex items-center justify-center">
+              {/* Spinner */}
+              <div className="h-10 w-10 border-4 border-amber-500/20 border-t-amber-500 rounded-full animate-spin"></div>
+              {/* Inner core pulsing anchor */}
+              <div className="absolute h-3 w-3 bg-amber-500 rounded-full animate-pulse"></div>
+            </div>
+            <div className="space-y-1">
+              <p className="text-xs font-extrabold text-neutral-900">Sedang Memproses...</p>
+              <p className="text-[10px] text-neutral-500 font-medium">Sistem sedang memuat laporan Anda ke server dan memetakan koordinat presisi.</p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

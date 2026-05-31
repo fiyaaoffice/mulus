@@ -8,9 +8,10 @@ interface HeaderProps {
   setIsAdmin: (val: boolean) => void;
   onShowArchives: () => void;
   showArchives: boolean;
+  onOpenGuide: () => void;
 }
 
-export function Header({ stats, isAdmin, setIsAdmin, onShowArchives, showArchives }: HeaderProps) {
+export function Header({ stats, isAdmin, setIsAdmin, onShowArchives, showArchives, onOpenGuide }: HeaderProps) {
   return (
     <header className="border-b border-black/10 bg-white px-8 py-5 z-10">
       <div className="mx-auto flex max-w-7xl flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -70,7 +71,15 @@ export function Header({ stats, isAdmin, setIsAdmin, onShowArchives, showArchive
         </div>
 
         {/* Portal Trigger Toggle */}
-        <div id="admin_toggle" className="flex items-center gap-3 self-start md:self-auto">
+        <div id="admin_toggle" className="flex items-center gap-2.5 self-start md:self-auto">
+          <button
+            onClick={onOpenGuide}
+            className="inline-flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50/50 hover:bg-amber-50 text-amber-800 px-4 py-2 text-xs font-bold tracking-tight shadow-sm cursor-pointer transition"
+          >
+            <Activity className="h-3.5 w-3.5" />
+            Petunjuk Laporan
+          </button>
+
           <button
             onClick={() => setIsAdmin(!isAdmin)}
             className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-xs font-bold tracking-tight shadow-sm transition cursor-pointer ${
