@@ -8,6 +8,7 @@ import { UserGuideModal } from './components/UserGuideModal';
 import { PotholeReport, Statistics } from './types';
 import { AnimatePresence, motion } from 'motion/react';
 import { CheckCircle, AlertTriangle, Info, Plus, ChevronRight, HelpCircle } from 'lucide-react';
+import * as offlineDb from './lib/offlineDb';
 
 export default function App() {
   const [reports, setReports] = useState<PotholeReport[]>([]);
@@ -61,6 +62,14 @@ export default function App() {
   const fetchReports = async () => {
     try {
       setLoading(true);
+      if (offlineDb.isStaticMode()) {
+        const localRep = offlineDb.getOfflineReports();
+        setReports(localRep);
+        setStats(offlineDb.getOfflineStats(localRep));
+        setError(null);
+        return;
+      }
+
       const res = await fetch('/api/reports');
       if (!res.ok) throw new Error("Gagal mengunduh laporan dari server.");
       const data = await res.json();
@@ -70,8 +79,14 @@ export default function App() {
       }
       setError(null);
     } catch (err: any) {
-      console.error(err);
-      setError(err.message || "Koneksi ke server terputus.");
+      console.warn("Backend fetch failed, falling back to local DB:", err);
+      // Fallback seamlessly to localStorage
+      const localRep = offlineDb.getOfflineReports();
+      setReports(localRep);
+      setStats(offlineDb.getOfflineStats(localRep));
+      setError(null);
+      // Mark localstorage so next requests don't keep timing out waiting for backend
+      localStorage.setItem('FORCE_OFFLINE_DB', 'true');
     } finally {
       setLoading(false);
     }
@@ -91,6 +106,23 @@ export default function App() {
   const handleCreateReport = async (formData: any) => {
     try {
       setLoading(true);
+      if (offlineDb.isStaticMode() || localStorage.getItem('FORCE_OFFLINE_DB') === 'true') {
+        const nr = offlineDb.createOfflineReport(formData);
+        setLastCreatedPin(nr.reporterPin || formData.reporterPin || '');
+        setLastCreatedTitle(nr.title || '');
+        setNotification({
+          message: "Postingan laporan jalan berlubang berhasil terkirim ke sistem offline!",
+          type: "success"
+        });
+        await fetchReports();
+        setIsFormOpen(false);
+        // Focus map and selector directly onto newly reported pothole!
+        setSelectedId(nr.id);
+        setClickedLat(null);
+        setClickedLng(null);
+        return;
+      }
+
       const res = await fetch('/api/reports', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -129,6 +161,14 @@ export default function App() {
   const handleUpvote = async (id: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
     try {
+      if (offlineDb.isStaticMode() || localStorage.getItem('FORCE_OFFLINE_DB') === 'true') {
+        const updated = offlineDb.upvoteOfflineReport(id);
+        if (updated) {
+          setReports(prev => prev.map(r => r.id === id ? { ...r, upvotes: updated.upvotes } : r));
+        }
+        return;
+      }
+
       const res = await fetch(`/api/reports/${id}/upvote`, { method: 'POST' });
       if (res.ok) {
         const updated = await res.json();
@@ -137,12 +177,25 @@ export default function App() {
       }
     } catch (err) {
       console.error("Gagal melakukan penyuaraan upvote:", err);
+      // Fallback
+      const updated = offlineDb.upvoteOfflineReport(id);
+      if (updated) {
+        setReports(prev => prev.map(r => r.id === id ? { ...r, upvotes: updated.upvotes } : r));
+      }
     }
   };
 
   // Add Comment/Sticky
   const handleAddComment = async (id: string, author: string, text: string, isOfficial?: boolean) => {
     try {
+      if (offlineDb.isStaticMode() || localStorage.getItem('FORCE_OFFLINE_DB') === 'true') {
+        const updated = offlineDb.addOfflineComment(id, author, text, isOfficial);
+        if (updated) {
+          setReports(prev => prev.map(r => r.id === id ? { ...r, comments: updated.comments } : r));
+        }
+        return;
+      }
+
       const res = await fetch(`/api/reports/${id}/comments`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -155,12 +208,27 @@ export default function App() {
       }
     } catch (err) {
       console.error("Gagal mengirim komentar:", err);
+      // Fallback
+      const updated = offlineDb.addOfflineComment(id, author, text, isOfficial);
+      if (updated) {
+        setReports(prev => prev.map(r => r.id === id ? { ...r, comments: updated.comments } : r));
+      }
     }
   };
 
   // Change report status (pending/repairing/resolved)
   const handleStatusChange = async (id: string, status: 'pending' | 'repairing' | 'resolved') => {
     try {
+      if (offlineDb.isStaticMode() || localStorage.getItem('FORCE_OFFLINE_DB') === 'true') {
+        const updated = offlineDb.updateOfflineStatus(id, status);
+        if (updated) {
+          setReports(prev => prev.map(r => r.id === id ? { ...r, status: updated.status } : r));
+          const localRep = offlineDb.getOfflineReports();
+          setStats(offlineDb.getOfflineStats(localRep));
+        }
+        return;
+      }
+
       const res = await fetch(`/api/reports/${id}/status`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -177,6 +245,13 @@ export default function App() {
       }
     } catch (err) {
       console.error("Gagal merubah status laporan:", err);
+      // Fallback
+      const updated = offlineDb.updateOfflineStatus(id, status);
+      if (updated) {
+        setReports(prev => prev.map(r => r.id === id ? { ...r, status: updated.status } : r));
+        const localRep = offlineDb.getOfflineReports();
+        setStats(offlineDb.getOfflineStats(localRep));
+      }
     }
   };
 
@@ -186,6 +261,20 @@ export default function App() {
     if (!reportToResolve) return;
 
     try {
+      if (offlineDb.isStaticMode() || localStorage.getItem('FORCE_OFFLINE_DB') === 'true') {
+        const updated = offlineDb.resolveOfflineReport(id);
+        if (updated) {
+          setRepairedLabel(`${reportToResolve.title} (${reportToResolve.roadName})`);
+          setShowCelebration(true);
+          setSelectedId(null);
+          await fetchReports();
+          setTimeout(() => {
+            setShowCelebration(false);
+          }, 4500);
+        }
+        return;
+      }
+
       const res = await fetch(`/api/reports/${id}/resolve`, { method: 'POST' });
       if (res.ok) {
         setRepairedLabel(`${reportToResolve.title} (${reportToResolve.roadName})`);
@@ -202,6 +291,17 @@ export default function App() {
       }
     } catch (err) {
       console.error("Gagal melunasi perbaikan jalan berlubang:", err);
+      // Fallback
+      const updated = offlineDb.resolveOfflineReport(id);
+      if (updated) {
+        setRepairedLabel(`${reportToResolve.title} (${reportToResolve.roadName})`);
+        setShowCelebration(true);
+        setSelectedId(null);
+        await fetchReports();
+        setTimeout(() => {
+          setShowCelebration(false);
+        }, 4500);
+      }
     }
   };
 
@@ -209,6 +309,21 @@ export default function App() {
   const handleDeleteReport = async (id: string, pin?: string) => {
     try {
       setLoading(true);
+      if (offlineDb.isStaticMode() || localStorage.getItem('FORCE_OFFLINE_DB') === 'true') {
+        const result = offlineDb.deleteOfflineReport(id, pin, isAdmin);
+        if (result.success) {
+          setSelectedId(null);
+          await fetchReports();
+          setNotification({
+            message: "Laporan jalan berlubang berhasil dihapus!",
+            type: "success"
+          });
+          return { success: true };
+        } else {
+          return { success: false, error: result.error || "Gagal menghapus laporan." };
+        }
+      }
+
       const url = pin ? `/api/reports/${id}?pin=${encodeURIComponent(pin)}&isAdmin=${isAdmin}` : `/api/reports/${id}?isAdmin=${isAdmin}`;
       const res = await fetch(url, { method: 'DELETE' });
       const data = await res.json();
@@ -229,7 +344,19 @@ export default function App() {
       }
     } catch (err: any) {
       console.error("Gagal menghapus laporan jalan berlubang:", err);
-      return { success: false, error: err.message };
+      // Fallback
+      const result = offlineDb.deleteOfflineReport(id, pin, isAdmin);
+      if (result.success) {
+        setSelectedId(null);
+        await fetchReports();
+        setNotification({
+          message: "Laporan jalan berlubang berhasil dihapus!",
+          type: "success"
+        });
+        return { success: true };
+      } else {
+        return { success: false, error: result.error || err.message };
+      }
     } finally {
       setLoading(false);
     }
