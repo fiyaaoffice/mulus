@@ -1,0 +1,39 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidReport(data) {
+      return data.id is string
+        && data.title is string && data.title.size() <= 256
+        && data.lat is number
+        && data.lng is number
+        && data.roadName is string && data.roadName.size() <= 256
+        && data.createdAt is string
+        && (data.status == 'pending' || data.status == 'repairing' || data.status == 'resolved')
+        && data.upvotes is int
+        && data.comments is list;
+    }
+
+    match /reports/{reportId} {
+      allow read: if true;
+      allow create: if isValidId(reportId) && isValidReport(incoming());
+      allow update: if isValidId(reportId) && isValidReport(incoming());
+      allow delete: if isValidId(reportId);
+    }
+  }
+}

@@ -237,3 +237,13 @@ export function deleteOfflineReport(id: string, pin?: string, isAdmin?: boolean)
   saveOfflineReports(reports);
   return { success: true };
 }
+
+// Clear all reports in Local Storage
+export function purgeOfflineReports(): void {
+  try {
+    window.localStorage.removeItem(LOCAL_STORAGE_KEY);
+  } catch (e) {
+    console.error("Local storage clear failure:", e);
+  }
+}
+

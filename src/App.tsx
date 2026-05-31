@@ -9,11 +9,23 @@ import { PotholeReport, Statistics } from './types';
 import { AnimatePresence, motion } from 'motion/react';
 import { CheckCircle, AlertTriangle, Info, Plus, ChevronRight, HelpCircle } from 'lucide-react';
 import * as offlineDb from './lib/offlineDb';
+import { 
+  observeReports, 
+  calculateStats, 
+  createReportInFirestore, 
+  upvoteReportInFirestore, 
+  addCommentInFirestore, 
+  updateStatusInFirestore, 
+  resolveReportInFirestore, 
+  deleteReportInFirestore,
+  purgeAllReportsInFirestore
+} from './lib/firebaseDb';
 
 export default function App() {
   const [reports, setReports] = useState<PotholeReport[]>([]);
   const [showGuide, setShowGuide] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  const [mobileTab, setMobileTab] = useState<'map' | 'feed'>('map');
   const [stats, setStats] = useState<Statistics>({
     totalActive: 0,
     totalRepaired: 0,
@@ -58,42 +70,31 @@ export default function App() {
     }
   }, [notification]);
 
-  // Initialize and Fetch Reports on Boot
+  // Real-time synchronization bootstrapper
   const fetchReports = async () => {
-    try {
-      setLoading(true);
-      if (offlineDb.isStaticMode()) {
+    // Legacy function placeholder for compatibility
+  };
+
+  useEffect(() => {
+    setLoading(true);
+    const unsubscribe = observeReports(
+      (realtimeReports) => {
+        setReports(realtimeReports);
+        setStats(calculateStats(realtimeReports));
+        setError(null);
+        setLoading(false);
+      },
+      (err) => {
+        console.warn("Firestore syncing skipped or offline. Falling back to Local Storage database:", err);
+        // Fallback gracefully to LocalStorage
         const localRep = offlineDb.getOfflineReports();
         setReports(localRep);
         setStats(offlineDb.getOfflineStats(localRep));
         setError(null);
-        return;
+        setLoading(false);
       }
-
-      const res = await fetch('/api/reports');
-      if (!res.ok) throw new Error("Gagal mengunduh laporan dari server.");
-      const data = await res.json();
-      setReports(data.reports || []);
-      if (data.stats) {
-        setStats(data.stats);
-      }
-      setError(null);
-    } catch (err: any) {
-      console.warn("Backend fetch failed, falling back to local DB:", err);
-      // Fallback seamlessly to localStorage
-      const localRep = offlineDb.getOfflineReports();
-      setReports(localRep);
-      setStats(offlineDb.getOfflineStats(localRep));
-      setError(null);
-      // Mark localstorage so next requests don't keep timing out waiting for backend
-      localStorage.setItem('FORCE_OFFLINE_DB', 'true');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchReports();
+    );
+    return () => unsubscribe();
   }, []);
 
   // Handle Map Coordinate Sensation / Trigger Click
@@ -106,52 +107,34 @@ export default function App() {
   const handleCreateReport = async (formData: any) => {
     try {
       setLoading(true);
-      if (offlineDb.isStaticMode() || localStorage.getItem('FORCE_OFFLINE_DB') === 'true') {
-        const nr = offlineDb.createOfflineReport(formData);
-        setLastCreatedPin(nr.reporterPin || formData.reporterPin || '');
-        setLastCreatedTitle(nr.title || '');
-        setNotification({
-          message: "Postingan laporan jalan berlubang berhasil terkirim ke sistem offline!",
-          type: "success"
-        });
-        await fetchReports();
-        setIsFormOpen(false);
-        // Focus map and selector directly onto newly reported pothole!
-        setSelectedId(nr.id);
-        setClickedLat(null);
-        setClickedLng(null);
-        return;
-      }
-
-      const res = await fetch('/api/reports', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
-      });
-
-      if (!res.ok) throw new Error("Gagal menyimpan laporan baru.");
-      const newReport = await res.json();
+      const newReport = await createReportInFirestore(formData);
       
-      // Save for PIN Overlay Success feedback
       setLastCreatedPin(newReport.reporterPin || formData.reporterPin || '');
       setLastCreatedTitle(newReport.title || '');
       
-      // Set success notification
       setNotification({
-        message: "Postingan laporan jalan berlubang berhasil terkirim ke sistem!",
+        message: "Postingan laporan jalan berlubang berhasil tersinkronisasi!",
         type: "success"
       });
       
-      // Update local state list and stats
-      await fetchReports();
       setIsFormOpen(false);
-      
-      // Focus map and selector directly onto newly reported pothole!
       setSelectedId(newReport.id);
       setClickedLat(null);
       setClickedLng(null);
     } catch (err: any) {
-      alert(err.message || "Terjadi galat.");
+      console.warn("Firestore save failed, falling back to offline:", err);
+      // Fallback
+      const nr = offlineDb.createOfflineReport(formData);
+      setLastCreatedPin(nr.reporterPin || formData.reporterPin || '');
+      setLastCreatedTitle(nr.title || '');
+      setNotification({
+        message: "Laporan tersimpan di memori handphone Anda secara offline!",
+        type: "info"
+      });
+      setIsFormOpen(false);
+      setSelectedId(nr.id);
+      setClickedLat(null);
+      setClickedLng(null);
     } finally {
       setLoading(false);
     }
@@ -161,20 +144,7 @@ export default function App() {
   const handleUpvote = async (id: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
     try {
-      if (offlineDb.isStaticMode() || localStorage.getItem('FORCE_OFFLINE_DB') === 'true') {
-        const updated = offlineDb.upvoteOfflineReport(id);
-        if (updated) {
-          setReports(prev => prev.map(r => r.id === id ? { ...r, upvotes: updated.upvotes } : r));
-        }
-        return;
-      }
-
-      const res = await fetch(`/api/reports/${id}/upvote`, { method: 'POST' });
-      if (res.ok) {
-        const updated = await res.json();
-        // Update local reports state
-        setReports(prev => prev.map(r => r.id === id ? { ...r, upvotes: updated.upvotes } : r));
-      }
+      await upvoteReportInFirestore(id);
     } catch (err) {
       console.error("Gagal melakukan penyuaraan upvote:", err);
       // Fallback
@@ -188,24 +158,7 @@ export default function App() {
   // Add Comment/Sticky
   const handleAddComment = async (id: string, author: string, text: string, isOfficial?: boolean) => {
     try {
-      if (offlineDb.isStaticMode() || localStorage.getItem('FORCE_OFFLINE_DB') === 'true') {
-        const updated = offlineDb.addOfflineComment(id, author, text, isOfficial);
-        if (updated) {
-          setReports(prev => prev.map(r => r.id === id ? { ...r, comments: updated.comments } : r));
-        }
-        return;
-      }
-
-      const res = await fetch(`/api/reports/${id}/comments`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ author, text, isOfficial })
-      });
-
-      if (res.ok) {
-        const updated = await res.json();
-        setReports(prev => prev.map(r => r.id === id ? { ...r, comments: updated.comments } : r));
-      }
+      await addCommentInFirestore(id, author, text, isOfficial);
     } catch (err) {
       console.error("Gagal mengirim komentar:", err);
       // Fallback
@@ -219,30 +172,7 @@ export default function App() {
   // Change report status (pending/repairing/resolved)
   const handleStatusChange = async (id: string, status: 'pending' | 'repairing' | 'resolved') => {
     try {
-      if (offlineDb.isStaticMode() || localStorage.getItem('FORCE_OFFLINE_DB') === 'true') {
-        const updated = offlineDb.updateOfflineStatus(id, status);
-        if (updated) {
-          setReports(prev => prev.map(r => r.id === id ? { ...r, status: updated.status } : r));
-          const localRep = offlineDb.getOfflineReports();
-          setStats(offlineDb.getOfflineStats(localRep));
-        }
-        return;
-      }
-
-      const res = await fetch(`/api/reports/${id}/status`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status })
-      });
-
-      if (res.ok) {
-        const updated = await res.json();
-        setReports(prev => prev.map(r => r.id === id ? { ...r, status: updated.status } : r));
-        // Refresh general stats to reflect repairing metrics
-        const statsRes = await fetch('/api/reports');
-        const statsData = await statsRes.json();
-        if (statsData.stats) setStats(statsData.stats);
-      }
+      await updateStatusInFirestore(id, status);
     } catch (err) {
       console.error("Gagal merubah status laporan:", err);
       // Fallback
@@ -261,34 +191,13 @@ export default function App() {
     if (!reportToResolve) return;
 
     try {
-      if (offlineDb.isStaticMode() || localStorage.getItem('FORCE_OFFLINE_DB') === 'true') {
-        const updated = offlineDb.resolveOfflineReport(id);
-        if (updated) {
-          setRepairedLabel(`${reportToResolve.title} (${reportToResolve.roadName})`);
-          setShowCelebration(true);
-          setSelectedId(null);
-          await fetchReports();
-          setTimeout(() => {
-            setShowCelebration(false);
-          }, 4500);
-        }
-        return;
-      }
-
-      const res = await fetch(`/api/reports/${id}/resolve`, { method: 'POST' });
-      if (res.ok) {
-        setRepairedLabel(`${reportToResolve.title} (${reportToResolve.roadName})`);
-        setShowCelebration(true);
-        setSelectedId(null);
-        
-        // Reload all data to refresh statistics and map pins
-        await fetchReports();
-
-        // Autoclose success celebration banner after 4 seconds
-        setTimeout(() => {
-          setShowCelebration(false);
-        }, 4500);
-      }
+      await resolveReportInFirestore(id);
+      setRepairedLabel(`${reportToResolve.title} (${reportToResolve.roadName})`);
+      setShowCelebration(true);
+      setSelectedId(null);
+      setTimeout(() => {
+        setShowCelebration(false);
+      }, 4500);
     } catch (err) {
       console.error("Gagal melunasi perbaikan jalan berlubang:", err);
       // Fallback
@@ -297,7 +206,6 @@ export default function App() {
         setRepairedLabel(`${reportToResolve.title} (${reportToResolve.roadName})`);
         setShowCelebration(true);
         setSelectedId(null);
-        await fetchReports();
         setTimeout(() => {
           setShowCelebration(false);
         }, 4500);
@@ -309,38 +217,26 @@ export default function App() {
   const handleDeleteReport = async (id: string, pin?: string) => {
     try {
       setLoading(true);
-      if (offlineDb.isStaticMode() || localStorage.getItem('FORCE_OFFLINE_DB') === 'true') {
-        const result = offlineDb.deleteOfflineReport(id, pin, isAdmin);
-        if (result.success) {
-          setSelectedId(null);
-          await fetchReports();
-          setNotification({
-            message: "Laporan jalan berlubang berhasil dihapus!",
-            type: "success"
-          });
-          return { success: true };
-        } else {
-          return { success: false, error: result.error || "Gagal menghapus laporan." };
-        }
-      }
-
-      const url = pin ? `/api/reports/${id}?pin=${encodeURIComponent(pin)}&isAdmin=${isAdmin}` : `/api/reports/${id}?isAdmin=${isAdmin}`;
-      const res = await fetch(url, { method: 'DELETE' });
-      const data = await res.json();
-      
-      if (res.ok) {
+      const result = await deleteReportInFirestore(id, pin, isAdmin);
+      if (result.success) {
         setSelectedId(null);
-        await fetchReports();
-        
-        // Show success toast for deletion
         setNotification({
           message: "Laporan jalan berlubang berhasil dihapus!",
           type: "success"
         });
-        
         return { success: true };
       } else {
-        return { success: false, error: data.error || "Gagal menghapus laporan." };
+        // Try fallback to offline
+        const localResult = offlineDb.deleteOfflineReport(id, pin, isAdmin);
+        if (localResult.success) {
+          setSelectedId(null);
+          setNotification({
+            message: "Laporan jalan berlubang offline berhasil dihapus!",
+            type: "success"
+          });
+          return { success: true };
+        }
+        return { success: false, error: result.error || "PIN Pelapor salah atau tidak sah." };
       }
     } catch (err: any) {
       console.error("Gagal menghapus laporan jalan berlubang:", err);
@@ -348,9 +244,8 @@ export default function App() {
       const result = offlineDb.deleteOfflineReport(id, pin, isAdmin);
       if (result.success) {
         setSelectedId(null);
-        await fetchReports();
         setNotification({
-          message: "Laporan jalan berlubang berhasil dihapus!",
+          message: "Laporan jalan berlubang offline berhasil dihapus!",
           type: "success"
         });
         return { success: true };
@@ -368,6 +263,37 @@ export default function App() {
     setSelectedId(null);
   };
 
+  // Clear/Purge all reports in the database (Admin reset tool)
+  const handlePurgeAll = async () => {
+    const confirmClear = window.confirm(
+      "Apakah Anda yakin ingin menghapus semua laporan dari sistem? Tindakan ini permanen dan tidak dapat dibatalkan."
+    );
+    if (!confirmClear) return;
+
+    try {
+      setLoading(true);
+      await purgeAllReportsInFirestore();
+      offlineDb.purgeOfflineReports(); // Clear local cache too
+      setSelectedId(null);
+      setNotification({
+        message: "Semua laporan jalan raya berhasil dihapus!",
+        type: "success"
+      });
+    } catch (err: any) {
+      console.error("Gagal menghapus semua database:", err);
+      offlineDb.purgeOfflineReports();
+      setSelectedId(null);
+      setReports([]);
+      setStats(offlineDb.getOfflineStats([]));
+      setNotification({
+        message: "Database telah dikosongkan secara lokal!",
+        type: "info"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const currentlySelectedReport = reports.find(r => r.id === selectedId);
 
   return (
@@ -380,38 +306,32 @@ export default function App() {
         onShowArchives={handleShowArchives}
         showArchives={showArchives}
         onOpenGuide={() => setShowGuide(true)}
+        onPurgeAll={handlePurgeAll}
       />
 
       {/* Main Workbench Layout: Map and Sidebar styled with Bento Grid curves */}
-      <div className="flex-1 flex p-2.5 sm:p-4 md:p-6 gap-3 md:gap-6 bg-zinc-50 overflow-hidden relative">
+      <div className="flex-1 flex p-0 sm:p-4 md:p-6 gap-0 sm:gap-4 md:gap-6 bg-zinc-50 overflow-hidden relative">
         
-        {/* Shaded backdrop behind the mobile sidebar menu */}
-        {isMobileSidebarOpen && (
-          <div
-            onClick={() => setIsMobileSidebarOpen(false)}
-            className="md:hidden fixed inset-0 z-30 bg-black/45 backdrop-blur-xs animate-fadeIn transition-opacity duration-300"
-          />
-        )}
-
         {/* Left Side: Interactive Collaborative Sidebar in a Bento Card */}
-        <div className={`w-[85%] max-w-[340px] md:w-[380px] shrink-0 h-full flex flex-col z-40 md:z-20 md:relative fixed md:top-auto md:bottom-auto md:left-auto top-2.5 bottom-2.5 left-2.5 md:shadow-none shadow-2xl transition-transform duration-300 ${
-          isMobileSidebarOpen ? 'translate-x-[0px]' : '-translate-x-[115%] md:translate-x-0'
-        } border border-black/10 rounded-[2rem] bg-white overflow-hidden`}>
+        <div className={`w-full h-full flex-col md:w-[380px] shrink-0 md:relative z-20 md:border md:rounded-[2rem] bg-white overflow-hidden ${
+          mobileTab === 'feed' ? 'flex' : 'hidden md:flex'
+        }`}>
           <ActiveFeed
             reports={reports}
             selectedId={selectedId}
             onSelect={(id) => {
               setSelectedId(id);
-              setIsMobileSidebarOpen(false); // Auto close sidebar on select to focus map
+              setMobileTab('map'); // Auto switch to map to show location of the selected road pothole on mobile!
             }}
             onUpvote={(id, e) => handleUpvote(id, e)}
             showArchivesOnly={showArchives}
-            onCloseMobile={() => setIsMobileSidebarOpen(false)}
           />
         </div>
 
         {/* Right Side: Map Canvas inside its beautiful Bento Frame */}
-        <div className="flex-1 h-full z-0 relative border border-black/10 rounded-[2rem] shadow-sm overflow-hidden bg-white">
+        <div className={`flex-1 h-full z-0 relative border-0 sm:border border-black/10 rounded-none sm:rounded-[2rem] shadow-none sm:shadow-sm overflow-hidden bg-white ${
+          mobileTab === 'map' ? 'block' : 'hidden md:block'
+        }`}>
           <IndonesiaMap
             reports={reports}
             selectedId={selectedId}
@@ -420,30 +340,45 @@ export default function App() {
             isAdmin={isAdmin}
           />
 
-          {/* Map Overlay Button (Only on Mobile to expand feed - positioned at bottom left for absolute thumb reachability) */}
-          <div className="absolute bottom-5 left-5 z-20 md:hidden font-sans">
-            <button
-              onClick={() => setIsMobileSidebarOpen(true)}
-              className="bg-black hover:bg-neutral-900 border border-neutral-800 text-white font-extrabold py-3 px-4.5 rounded-2xl flex items-center gap-2 shadow-2xl active:scale-95 transition text-[11px] uppercase tracking-wider cursor-pointer"
-            >
-              <span>Daftar Laporan</span>
-              <span className="bg-neutral-800 border border-neutral-700 text-white text-[9px] px-1.5 py-0.5 rounded-md font-bold">
-                {reports.filter(r => showArchives ? r.status === 'resolved' : r.status !== 'resolved').length}
-              </span>
-            </button>
-          </div>
-
-          {/* Center Pothole Register Trigger (Dashed style bento button or premium floating bento action) */}
-          <div className="absolute bottom-5 right-5 z-20 flex flex-col items-end gap-2 font-sans">
+          {/* Center Pothole Register Trigger */}
+          <div className="absolute bottom-4 right-4 z-20 flex flex-col items-end gap-2 font-sans md:bottom-6 md:right-6">
             <button
               onClick={() => setIsFormOpen(true)}
-              className="bg-black hover:bg-neutral-900 text-white font-extrabold p-3 sm:p-4 px-4.5 sm:px-6 rounded-2xl flex items-center gap-2 shadow-2xl hover:scale-102 active:scale-98 transition duration-150 border border-neutral-800 cursor-pointer text-xs"
+              className="bg-black hover:bg-neutral-900 text-white font-extrabold p-3 sm:p-4 px-4 sm:px-6 rounded-xl sm:rounded-2xl flex items-center gap-2 shadow-2xl hover:scale-102 active:scale-98 transition duration-150 border border-neutral-800 cursor-pointer text-xs md:text-xs"
             >
-              <Plus className="h-4.5 w-4.5 stroke-[3]" />
-              <span className="hidden xs:inline">Laporkan Jalan Berlubang</span>
-              <span className="xs:hidden">Lapor Lubang</span>
+              <Plus className="h-4 w-4 sm:h-4.5 sm:w-4.5 stroke-[3]" />
+              <span>Lapor Lubang</span>
             </button>
           </div>
+        </div>
+
+        {/* Floating Mode Toggle Pill for Phone/Mobile Screen Precision */}
+        <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-40 md:hidden flex items-center bg-black/95 backdrop-blur-md border border-neutral-800 text-white rounded-full shadow-2xl p-1 select-none font-sans">
+          <button
+            onClick={() => setMobileTab('map')}
+            className={`flex items-center gap-2 rounded-full py-1.5 px-4.5 text-[10px] font-extrabold uppercase tracking-wider transition ${
+              mobileTab === 'map'
+                ? 'bg-white text-black'
+                : 'text-neutral-400 hover:text-white'
+            }`}
+          >
+            Peta
+          </button>
+          <button
+            onClick={() => setMobileTab('feed')}
+            className={`flex items-center gap-2 rounded-full py-1.5 px-4.5 text-[10px] font-extrabold uppercase tracking-wider transition ${
+              mobileTab === 'feed'
+                ? 'bg-white text-black'
+                : 'text-neutral-400 hover:text-white'
+            }`}
+          >
+            Laporan
+            <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold leading-none ${
+              mobileTab === 'feed' ? 'bg-black text-white' : 'bg-neutral-800 text-neutral-300'
+            }`}>
+              {reports.filter(r => showArchives ? r.status === 'resolved' : r.status !== 'resolved').length}
+            </span>
+          </button>
         </div>
 
         {/* Success / Repaired Celebration Visual Overlay Banner */}

@@ -1,0 +1,36 @@
+{
+  "entities": {
+    "PotholeReport": {
+      "title": "PotholeReport",
+      "description": "Laporan jalan berlubang dari pengguna",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "lat": { "type": "number" },
+        "lng": { "type": "number" },
+        "imageUrl": { "type": "string" },
+        "videoUrl": { "type": "string" },
+        "severity": { "type": "string" },
+        "reporterName": { "type": "string" },
+        "reporterPin": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "status": { "type": "string", "enum": ["pending", "repairing", "resolved"] },
+        "upvotes": { "type": "integer" },
+        "roadName": { "type": "string" },
+        "city": { "type": "string" },
+        "province": { "type": "string" },
+        "authorityCategory": { "type": "string", "enum": ["pusat", "provinsi", "kabupaten"] },
+        "comments": { "type": "array" }
+      },
+      "required": ["id", "title", "lat", "lng", "roadName", "createdAt", "status"]
+    }
+  },
+  "firestore": {
+    "/reports/{reportId}": {
+      "schema": "PotholeReport",
+      "description": "Koleksi semua laporan jalan berlubang"
+    }
+  }
+}
