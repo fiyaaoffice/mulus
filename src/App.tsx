@@ -36,6 +36,11 @@ export default function App() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [adminCategory, setAdminCategory] = useState<'pusat' | 'provinsi' | 'kabupaten' | null>(null);
+  const [isLoginPortalOpen, setIsLoginPortalOpen] = useState(false);
+  const [loginRole, setLoginRole] = useState<'pusat' | 'provinsi' | 'kabupaten'>('pusat');
+  const [loginPin, setLoginPin] = useState('');
+  const [loginError, setLoginError] = useState<string | null>(null);
   const [showArchives, setShowArchives] = useState(false);
   
   // Coordinates picked by tapping map
@@ -75,17 +80,40 @@ export default function App() {
     // Legacy function placeholder for compatibility
   };
 
+  const [isFirebaseOffline, setIsFirebaseOffline] = useState(false);
+
+  // Load initial reports from LocalStorage immediately for instant load response
+  useEffect(() => {
+    const initialLocalReports = offlineDb.getOfflineReports();
+    if (initialLocalReports.length > 0) {
+      setReports(initialLocalReports);
+      setStats(offlineDb.getOfflineStats(initialLocalReports));
+    }
+  }, []);
+
   useEffect(() => {
     setLoading(true);
+    let isSubscribed = true;
+
     const unsubscribe = observeReports(
       (realtimeReports) => {
+        if (!isSubscribed) return;
+        setIsFirebaseOffline(false);
         setReports(realtimeReports);
         setStats(calculateStats(realtimeReports));
         setError(null);
         setLoading(false);
+        // Sync local storage cache with live DB so offline mode has same data next time!
+        try {
+          window.localStorage.setItem("mulus_reports_database", JSON.stringify(realtimeReports));
+        } catch (e) {
+          console.warn("Sync cache to localStorage ignored in sandbox context:", e);
+        }
       },
       (err) => {
+        if (!isSubscribed) return;
         console.warn("Firestore syncing skipped or offline. Falling back to Local Storage database:", err);
+        setIsFirebaseOffline(true);
         // Fallback gracefully to LocalStorage
         const localRep = offlineDb.getOfflineReports();
         setReports(localRep);
@@ -94,8 +122,61 @@ export default function App() {
         setLoading(false);
       }
     );
-    return () => unsubscribe();
+    return () => {
+      isSubscribed = false;
+      unsubscribe();
+    };
   }, []);
+
+  const handleToggleAdmin = (newVal: boolean) => {
+    if (isAdmin) {
+      setIsAdmin(false);
+      setAdminCategory(null);
+      setNotification({
+        message: "Berhasil keluar dari Portal Mandiri PUPR (INDONESIA).",
+        type: "success"
+      });
+    } else {
+      setLoginPin('');
+      setLoginRole('pusat');
+      setLoginError(null);
+      setIsLoginPortalOpen(true);
+    }
+  };
+
+  const handleLoginSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoginError(null);
+    
+    const trimPin = loginPin.trim();
+    if (loginRole === 'pusat' && trimPin === '194507') {
+      setIsAdmin(true);
+      setAdminCategory('pusat');
+      setIsLoginPortalOpen(false);
+      setNotification({
+        message: "Akses Portal Pemerintah Pusat (Kementerian PUPR) Terbuka!",
+        type: "success"
+      });
+    } else if (loginRole === 'provinsi' && trimPin === '194508') {
+      setIsAdmin(true);
+      setAdminCategory('provinsi');
+      setIsLoginPortalOpen(false);
+      setNotification({
+        message: "Akses Portal Pemerintah Provinsi Terbuka!",
+        type: "success"
+      });
+    } else if (loginRole === 'kabupaten' && trimPin === '194509') {
+      setIsAdmin(true);
+      setAdminCategory('kabupaten');
+      setIsLoginPortalOpen(false);
+      setNotification({
+        message: "Akses Portal Pemerintah Kabupaten/Kota Terbuka!",
+        type: "success"
+      });
+    } else {
+      setLoginError("PIN Keamanan salah! Silakan periksa kembali kewenangan Anda.");
+    }
+  };
 
   // Handle Map Coordinate Sensation / Trigger Click
   const handleMapClick = (lat: number, lng: number) => {
@@ -125,6 +206,12 @@ export default function App() {
       console.warn("Firestore save failed, falling back to offline:", err);
       // Fallback
       const nr = offlineDb.createOfflineReport(formData);
+      
+      // Update reports state immediately so the new local report displays instantly on current mobile device
+      const currentOffline = offlineDb.getOfflineReports();
+      setReports(currentOffline);
+      setStats(offlineDb.getOfflineStats(currentOffline));
+
       setLastCreatedPin(nr.reporterPin || formData.reporterPin || '');
       setLastCreatedTitle(nr.title || '');
       setNotification({
@@ -203,6 +290,10 @@ export default function App() {
       // Fallback
       const updated = offlineDb.resolveOfflineReport(id);
       if (updated) {
+        setReports(prev => prev.map(r => r.id === id ? { ...r, status: updated.status, comments: updated.comments } : r));
+        const localRep = offlineDb.getOfflineReports();
+        setStats(offlineDb.getOfflineStats(localRep));
+        
         setRepairedLabel(`${reportToResolve.title} (${reportToResolve.roadName})`);
         setShowCelebration(true);
         setSelectedId(null);
@@ -230,6 +321,12 @@ export default function App() {
         const localResult = offlineDb.deleteOfflineReport(id, pin, isAdmin);
         if (localResult.success) {
           setSelectedId(null);
+          
+          // Refresh list state immediately
+          const currentOffline = offlineDb.getOfflineReports();
+          setReports(currentOffline);
+          setStats(offlineDb.getOfflineStats(currentOffline));
+
           setNotification({
             message: "Laporan jalan berlubang offline berhasil dihapus!",
             type: "success"
@@ -244,6 +341,12 @@ export default function App() {
       const result = offlineDb.deleteOfflineReport(id, pin, isAdmin);
       if (result.success) {
         setSelectedId(null);
+        
+        // Refresh list state immediately
+        const currentOffline = offlineDb.getOfflineReports();
+        setReports(currentOffline);
+        setStats(offlineDb.getOfflineStats(currentOffline));
+
         setNotification({
           message: "Laporan jalan berlubang offline berhasil dihapus!",
           type: "success"
@@ -299,15 +402,23 @@ export default function App() {
   return (
     <div className="flex h-screen flex-col bg-zinc-50 font-sans overflow-hidden">
       {/* Top Google-style workspace dashboard Header */}
-      <Header
+       <Header
         stats={stats}
         isAdmin={isAdmin}
-        setIsAdmin={setIsAdmin}
+        setIsAdmin={handleToggleAdmin}
         onShowArchives={handleShowArchives}
         showArchives={showArchives}
         onOpenGuide={() => setShowGuide(true)}
-        onPurgeAll={handlePurgeAll}
       />
+
+      {isFirebaseOffline && (
+        <div className="bg-amber-50 border-b border-amber-200/80 px-4 py-1.5 text-center flex items-center justify-center gap-2 font-sans z-30 transition animate-fadeIn">
+          <Info className="h-4 w-4 text-amber-700 shrink-0" />
+          <p className="text-[10px] sm:text-xs font-semibold text-amber-900 leading-snug animate-pulse">
+            Aplikasi berjalan dalam <strong>Mode Cadangan Lokal (Offline)</strong> karena batasan keamanan browser dalam iframe. Hubungkan ke Cloud (Buka di Tab Baru) agar otomatis sinkronisasi HP & Laptop Anda!
+          </p>
+        </div>
+      )}
 
       {/* Main Workbench Layout: Map and Sidebar styled with Bento Grid curves */}
       <div className="flex-1 flex p-0 sm:p-4 md:p-6 gap-0 sm:gap-4 md:gap-6 bg-zinc-50 overflow-hidden relative">
@@ -439,6 +550,90 @@ export default function App() {
             }}
             onSubmit={handleCreateReport}
           />
+        )}
+
+        {/* Akses Portal PIN login modal */}
+        {isLoginPortalOpen && (
+          <div className="fixed inset-0 z-[1250] flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs font-sans animate-fadeIn">
+            <div className="bg-white rounded-3xl max-w-sm w-full p-6 border border-neutral-200 shadow-2xl space-y-4">
+              <div className="text-center space-y-1.5">
+                <div className="h-10 w-10 rounded-full bg-neutral-900 text-white flex items-center justify-center mx-auto shadow-sm">
+                  <span className="font-mono text-xs font-bold leading-none">PUPR</span>
+                </div>
+                <h3 className="font-extrabold tracking-tight text-neutral-950 text-base">
+                  Akses Portal Pemerintah
+                </h3>
+                <p className="text-[11px] text-neutral-500 max-w-xs mx-auto leading-normal">
+                  Masukkan PIN otentikasi resmi sesuai jenjang kewenangan pemerintahan Anda.
+                </p>
+              </div>
+
+              <form onSubmit={handleLoginSubmit} className="space-y-4">
+                <div className="space-y-1.5">
+                  <label className="block text-[10px] font-bold text-neutral-500 uppercase tracking-wider font-mono">
+                    Tingkat Kewenangan
+                  </label>
+                  <select
+                    value={loginRole}
+                    onChange={(e: any) => {
+                      setLoginRole(e.target.value);
+                      setLoginError(null);
+                    }}
+                    className="w-full rounded-xl border border-neutral-250 bg-white px-3.5 py-2.5 text-xs font-semibold text-neutral-800 shadow-3xs outline-none focus:border-neutral-950 transition"
+                  >
+                    <option value="pusat">Pemerintah Pusat (Kementerian PUPR)</option>
+                    <option value="provinsi">Pemerintah Provinsi (Dinas PU)</option>
+                    <option value="kabupaten">Pemerintah Kabupaten/Kota (Dinas PU)</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="block text-[10px] font-bold text-neutral-500 uppercase tracking-wider font-mono">
+                    PIN Akses Keamanan
+                  </label>
+                  <input
+                    type="password"
+                    pattern="[0-9]*"
+                    inputMode="numeric"
+                    placeholder="Masukkan PIN Otentikasi"
+                    value={loginPin}
+                    onChange={(e) => {
+                      setLoginPin(e.target.value);
+                      setLoginError(null);
+                    }}
+                    className="w-full text-center rounded-xl border border-neutral-250 px-3.5 py-2.5 text-lg font-bold font-mono tracking-widest text-neutral-900 shadow-3xs outline-none focus:border-neutral-950 transition"
+                    required
+                  />
+                </div>
+
+                {loginError && (
+                  <div className="flex items-center gap-2 rounded-xl bg-red-50 border border-red-200 text-red-800 p-3">
+                    <AlertTriangle className="h-4 w-4 shrink-0 text-red-600" />
+                    <p className="text-[10px] leading-snug font-bold">{loginError}</p>
+                  </div>
+                )}
+
+                <div className="flex gap-2.5 pt-1.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsLoginPortalOpen(false);
+                      setLoginError(null);
+                    }}
+                    className="flex-1 py-2.5 text-xs font-semibold rounded-xl border border-neutral-250 bg-white hover:bg-neutral-50 text-neutral-800 active:scale-98 transition duration-100 cursor-pointer"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="submit"
+                    className="flex-1 py-2.5 text-xs font-extrabold rounded-xl bg-black hover:bg-neutral-900 text-white shadow-md active:scale-98 transition duration-100 cursor-pointer"
+                  >
+                    Masuk Portal
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
         )}
 
         {/* User Guide Tutorial Modal */}

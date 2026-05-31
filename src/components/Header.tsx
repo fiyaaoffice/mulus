@@ -1,5 +1,5 @@
 import React from 'react';
-import { Activity, ShieldCheck, Layers, AlertTriangle, Trash2 } from 'lucide-react';
+import { Activity, ShieldCheck, Layers, AlertTriangle } from 'lucide-react';
 import { Statistics } from '../types';
 import logoMulus from '../assets/images/logo mulus.png';
 
@@ -10,10 +10,9 @@ interface HeaderProps {
   onShowArchives: () => void;
   showArchives: boolean;
   onOpenGuide: () => void;
-  onPurgeAll?: () => void;
 }
 
-export function Header({ stats, isAdmin, setIsAdmin, onShowArchives, showArchives, onOpenGuide, onPurgeAll }: HeaderProps) {
+export function Header({ stats, isAdmin, setIsAdmin, onShowArchives, showArchives, onOpenGuide }: HeaderProps) {
   return (
     <header className="border-b border-black/10 bg-white px-3.5 sm:px-6 md:px-8 py-2.5 sm:py-4 z-10">
       <div className="mx-auto flex max-w-7xl flex-col gap-2 md:flex-row md:items-center md:justify-between">
@@ -28,11 +27,8 @@ export function Header({ stats, isAdmin, setIsAdmin, onShowArchives, showArchive
             />
             <div>
               <div className="flex items-center gap-1.5 sm:gap-2">
-                <span className="font-sans font-extrabold text-xs sm:text-sm tracking-tight text-neutral-900 leading-none">
-                  MULUS
-                </span>
-                <span className="rounded-full bg-zinc-100 px-1.5 py-0.5 text-[8px] font-bold text-black/60 tracking-wider uppercase border border-black/5 leading-none">
-                  ID
+                <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-[8px] sm:text-[9px] font-extrabold text-black/60 tracking-wider uppercase border border-black/5 leading-none">
+                  INDONESIA
                 </span>
               </div>
               <p className="font-sans text-[8px] sm:text-[10px] font-semibold text-black/40 mt-1">
@@ -43,15 +39,6 @@ export function Header({ stats, isAdmin, setIsAdmin, onShowArchives, showArchive
 
           {/* Mobile actions stacked nicely on the right corner of logo row */}
           <div className="flex items-center gap-1.5 md:hidden">
-            {isAdmin && onPurgeAll && (
-              <button
-                onClick={onPurgeAll}
-                title="Hapus Semua Laporan"
-                className="inline-flex items-center justify-center p-2 rounded-full border border-red-200 bg-red-50 text-red-700 cursor-pointer hover:bg-red-100 transition duration-150 shadow-2xs"
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-              </button>
-            )}
             <button
               onClick={onOpenGuide}
               title="Petunjuk Laporan"
@@ -106,16 +93,6 @@ export function Header({ stats, isAdmin, setIsAdmin, onShowArchives, showArchive
 
         {/* Portal Trigger Toggle (Desktop only) */}
         <div id="admin_toggle" className="hidden md:flex items-center gap-2.5">
-          {isAdmin && onPurgeAll && (
-            <button
-              onClick={onPurgeAll}
-              className="inline-flex items-center gap-2 rounded-full border border-red-200 bg-red-50 hover:bg-red-100 text-red-800 px-4 py-2 text-xs font-semibold tracking-tight shadow-sm cursor-pointer transition animate-fadeIn"
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-              Bersihkan Semua Laporan
-            </button>
-          )}
-
           <button
             onClick={onOpenGuide}
             className="inline-flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50/50 hover:bg-amber-50 text-amber-800 px-4 py-2 text-xs font-bold tracking-tight shadow-sm cursor-pointer transition"
