@@ -4,9 +4,17 @@ import path from 'path';
 import {defineConfig} from 'vite';
 
 export default defineConfig(() => {
-  // If building for GitHub Pages 'mulus', set base to '/mulus/', otherwise default to '/' for local/AI Studio dev server
-  const isGithubPages = process.env.GITHUB_PAGES === 'true' || process.env.GH_PAGES === 'true' || process.env.BUILD_TARGET === 'gh-pages';
-  const base = isGithubPages ? '/mulus/' : '/';
+  // If building inside a GitHub Action, extract repo name automatically from GITHUB_REPOSITORY (e.g. 'owner/mulus' => '/mulus/')
+  const isGithubActions = process.env.GITHUB_ACTIONS === 'true';
+  const githubRepo = process.env.GITHUB_REPOSITORY;
+  
+  let base = '/';
+  if (isGithubActions && githubRepo) {
+    const repoName = githubRepo.split('/')[1];
+    base = repoName ? `/${repoName}/` : '/';
+  } else if (process.env.GITHUB_PAGES === 'true' || process.env.GH_PAGES === 'true' || process.env.BUILD_TARGET === 'gh-pages') {
+    base = '/mulus/';
+  }
 
   return {
     base,
