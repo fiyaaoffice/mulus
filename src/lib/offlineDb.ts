@@ -57,111 +57,7 @@ function generateOfflineAudit(title: string, desc: string, roadName: string, cit
 }
 
 // Exquisite seed potholes with realistic Indonesian coordinates, AI Audits and PUPR comments!
-const SEED_POTHOLES: PotholeReport[] = [
-  {
-    id: "pothole-kemang",
-    title: "Lubang Amblas di Persimpangan Kemang",
-    description: "Kedalaman sekitar 15cm, sangat berbahaya bagi pengendara roda dua terutama saat hujan malam hari karena air menggenang menutupi lubang.",
-    lat: -6.2732,
-    lng: 106.8208,
-    imageUrl: "https://images.unsplash.com/photo-1515162305285-0293e4767cc2?auto=format&fit=crop&q=80&w=800",
-    severity: "critical",
-    reporterName: "Aditya Pratama",
-    reporterPin: "1234",
-    createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
-    status: "repairing",
-    upvotes: 42,
-    roadName: "Jalan Kemang Raya",
-    city: "Jakarta Selatan",
-    province: "DKI Jakarta",
-    authorityCategory: "pusat",
-    aiAudit: {
-      summary: "Evaluasi taktis mendeteksi kehancuran masif pada aspal penyangga dasar. Kerusakan struktural ini disebabkan oleh penetrasi air basah berulang dan beban berganda angkutan berat yang melampaui kelas jalan.",
-      trafficImpact: "Kritis & Sangat Tinggi. Lubang berada langsung di alur laju utama dengan tingkat kemacetan ekstrim saat jam berangkat kerja.",
-      estimatedCost: "Rp 6.500.000",
-      recommendedMaterial: "Asphalt Concrete - Wearing Course (AC-WC) kualitas premium bertaraf nasional dengan pelindung pengerasan semen.",
-      estimatedTimeline: "1 - 2 Hari kerja",
-      puprResponseCode: "PUPR-JAK-8120-O2"
-    },
-    comments: [
-      {
-        id: "c-kemang-1",
-        author: "Siti Rahmawati",
-        text: "Tadi malam hampir jatuh di sini pas pulang kantor gila parah banget!",
-        createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString()
-      },
-      {
-        id: "c-kemang-official",
-        author: "Kementerian PUPR",
-        text: "Laporan terverifikasi. Skuad pemeliharaan Balai Besar Pelaksanaan Jalan Nasional DKI Jawa Barat telah menjadwalkan penutupan lubang darurat dalam 24 jam.",
-        createdAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
-        isOfficial: true
-      }
-    ]
-  },
-  {
-    id: "pothole-dago",
-    title: "Retakan Lebar Sepanjang Tanjakan Dago",
-    description: "Retakan memanjang di sisi kiri jalan menuju arah atas Dago Pakar, membahayakan ban mobil tipis atau motor yang berbelok mendadak.",
-    lat: -6.8791,
-    lng: 107.6184,
-    imageUrl: "https://images.unsplash.com/photo-1151516230528-0293?auto=format&fit=crop&q=80&w=800",
-    severity: "medium",
-    reporterName: "Rian Hidayat",
-    reporterPin: "5678",
-    createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
-    status: "pending",
-    upvotes: 18,
-    roadName: "Jalan Ir. H. Juanda (Dago)",
-    city: "Bandung",
-    province: "Jawa Barat",
-    authorityCategory: "provinsi",
-    aiAudit: {
-      summary: "Terjadi retakan reflektif menengah berukuran tak-beraturan. Masalah dipicu oleh buruknya drainase sekunder perkotaan yang meluap ke lapisan pengikat jalan.",
-      trafficImpact: "Sedang. Mengharuskan kendaraan melambat bertahap dan mengambil rasi laju menghindar sisi jalan.",
-      estimatedCost: "Rp 3.800.000",
-      recommendedMaterial: "Campuran Aspal Dingin (Cold Mix Asphalt) Polimer Karbon tinggi dengan pelapis kedap air.",
-      estimatedTimeline: "3 Hari kerja",
-      puprResponseCode: "PUPR-BAN-3199-G5"
-    },
-    comments: []
-  },
-  {
-    id: "pothole-darmo",
-    title: "Lubang Kupas Jalur Bus Darmo",
-    description: "Aspal terkelupas di lajur keluar halte bus, memicu guncangan berlebih saat dilewati kendaraan umum.",
-    lat: -7.2874,
-    lng: 112.7378,
-    imageUrl: "https://images.unsplash.com/photo-1599740831633-8a30ccbd95f6?auto=format&fit=crop&q=80&w=800",
-    severity: "low",
-    reporterName: "Anita Wijaya",
-    reporterPin: "9999",
-    createdAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(),
-    status: "resolved",
-    upvotes: 9,
-    roadName: "Jalan Raya Darmo",
-    city: "Surabaya",
-    province: "Jawa Timur",
-    authorityCategory: "kabupaten",
-    aiAudit: {
-      summary: "Pelepasan butiran agregat permukaan ringan (stripping). Konstruksi dasar stabil; hanya pengelupasan penutup tipis di jalur gesek rem lambat.",
-      trafficImpact: "Rendah. Arus kendaraan bermotor relatif mengalir, namun tetap berisiko slip bagi pengendara dua roda.",
-      estimatedCost: "Rp 1.500.000",
-      recommendedMaterial: "Lapis Penutup Bubur Aspal (Asphalt Slurry Seal) praktis.",
-      estimatedTimeline: "2 - 4 Jam pengerjaan kering.",
-      puprResponseCode: "PUPR-SUB-1044-E1"
-    },
-    comments: [
-      {
-        id: "c-darmo-official",
-        author: "Kementerian PUPR",
-        text: "Pemeliharaan preventif selesai dilaksanakan oleh tim Dinas PU Kota Surabaya. Jalan kembali rata sempurna.",
-        createdAt: new Date(Date.now() - 9 * 24 * 60 * 60 * 1000).toISOString(),
-        isOfficial: true
-      }
-    ]
-  }
-];
+const SEED_POTHOLES: PotholeReport[] = [];
 
 const LOCAL_STORAGE_KEY = "mulus_reports_database";
 
@@ -169,8 +65,13 @@ const LOCAL_STORAGE_KEY = "mulus_reports_database";
 export function getOfflineReports(): PotholeReport[] {
   try {
     const raw = window.localStorage.getItem(LOCAL_STORAGE_KEY);
+    // Overwrite/clear any old pre-existing seed data cache to start fresh
+    if (raw && (raw.includes('pothole-kemang') || raw.includes('pothole-dago') || raw.includes('pothole-darmo'))) {
+      window.localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify([]));
+      return [];
+    }
     if (!raw) {
-      // Seed initial data for glorious visual context on first load!
+      // Seed initial data (empty)
       window.localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(SEED_POTHOLES));
       return SEED_POTHOLES;
     }

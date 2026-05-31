@@ -1,6 +1,7 @@
 import React from 'react';
 import { Activity, ShieldCheck, CheckCircle2, Users, Layers, AlertTriangle } from 'lucide-react';
 import { Statistics } from '../types';
+import logoMulus from '../assets/images/logo mulus.png';
 
 interface HeaderProps {
   stats: Statistics;
@@ -19,7 +20,7 @@ export function Header({ stats, isAdmin, setIsAdmin, onShowArchives, showArchive
         <div className="flex flex-col sm:flex-row sm:items-center gap-4">
           <div className="flex items-center gap-3">
             <img 
-              src="images/logo mulus.png" 
+              src={logoMulus} 
               alt="Logo Mulus" 
               className="h-9 w-auto object-contain rounded-md" 
               onError={(e) => {
