@@ -1,7 +1,7 @@
 {
   "firestore": [
     {
-      "database": "mulus-db",
+      "database": "ai-studio-3303532f-c6a6-4824-89d0-8b1bd6cbc5c4",
       "rules": "firestore.rules"
     },
     {

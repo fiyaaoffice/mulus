@@ -20,8 +20,8 @@ service cloud.firestore {
     function isValidReport(data) {
       return data.id is string
         && data.title is string && data.title.size() <= 256
-        && data.lat is number
-        && data.lng is number
+        && (data.lat is float || data.lat is int)
+        && (data.lng is float || data.lng is int)
         && data.roadName is string && data.roadName.size() <= 256
         && data.createdAt is string
         && (data.status == 'pending' || data.status == 'repairing' || data.status == 'resolved')
