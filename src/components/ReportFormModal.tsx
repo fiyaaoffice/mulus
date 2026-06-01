@@ -21,6 +21,51 @@ interface ReportFormModalProps {
   }) => void;
 }
 
+// Compress and downscale uploaded images using canvas to bypass Firestore's 1MB document size limit
+export const compressImage = (file: File, maxWidth = 640, maxHeight = 640, quality = 0.6): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (event) => {
+      const img = new Image();
+      img.src = event.target?.result as string;
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > maxWidth) {
+            height = Math.round((height * maxWidth) / width);
+            width = maxWidth;
+          }
+        } else {
+          if (height > maxHeight) {
+            width = Math.round((width * maxHeight) / height);
+            height = maxHeight;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          resolve(event.target?.result as string);
+          return;
+        }
+
+        // Draw and perform anti-aliasing downscaling
+        ctx.drawImage(img, 0, 0, width, height);
+        const dataUrl = canvas.toDataURL('image/jpeg', quality);
+        resolve(dataUrl);
+      };
+      img.onerror = (err) => reject(err);
+    };
+    reader.onerror = (err) => reject(err);
+  });
+};
+
 export function getSimulatedAddress(lat: number, lng: number): { roadName: string, city: string, province: string, authorityCategory: 'pusat' | 'provinsi' | 'kabupaten' } {
   // Default fallback
   let roadName = "Jl. Raya Utama";
@@ -134,6 +179,7 @@ export function ReportFormModal({ initialLat, initialLng, onClose, onSubmit }: R
   // Custom smart image picker (presets removed, always 'custom')
   const [selectedImagePreset, setSelectedImagePreset] = useState<string>('custom');
   const [customImageUrl, setCustomImageUrl] = useState<string>('');
+  const [isCompressing, setIsCompressing] = useState(false);
 
   // Handle coordinate edits: auto-fill address when lat / lng changes
   useEffect(() => {
@@ -268,21 +314,32 @@ export function ReportFormModal({ initialLat, initialLng, onClose, onSubmit }: R
     }
   }, [initialLat, initialLng]);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       if (file.size > 10 * 1024 * 1024) {
         alert("Ukuran gambar terlalu besar. Batas maksimal adalah 10MB.");
         return;
       }
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        if (typeof reader.result === 'string') {
-          setCustomImageUrl(reader.result);
-          setSelectedImagePreset('custom');
-        }
-      };
-      reader.readAsDataURL(file);
+      setIsCompressing(true);
+      try {
+        const compressedBase64 = await compressImage(file, 640, 640, 0.6);
+        setCustomImageUrl(compressedBase64);
+        setSelectedImagePreset('custom');
+      } catch (err) {
+        console.error("Gagal mengompres gambar:", err);
+        // Fallback to raw base64 if compression fails
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          if (typeof reader.result === 'string') {
+            setCustomImageUrl(reader.result);
+            setSelectedImagePreset('custom');
+          }
+        };
+        reader.readAsDataURL(file);
+      } finally {
+        setIsCompressing(false);
+      }
     }
   };
 
@@ -563,26 +620,35 @@ export function ReportFormModal({ initialLat, initialLng, onClose, onSubmit }: R
               )}
 
               {/* Instant Upload Preview status */}
-              {selectedImagePreset === 'custom' && customImageUrl && (
-                <div className="flex items-center gap-2 pt-1 border-t border-dashed border-zinc-200">
-                  <div className="h-10 w-10 shrink-0 rounded-lg overflow-hidden border border-neutral-200 bg-white">
-                    <img
-                      src={customImageUrl}
-                      alt="Uploader preview"
-                      referrerPolicy="no-referrer"
-                      className="h-full w-full object-cover"
-                    />
-                  </div>
-                  <div>
-                    <span className="text-[10px] font-extrabold text-emerald-600 flex items-center gap-1">
-                      <Check className="h-3 w-3 stroke-[3]" />
-                      Berhasil Mengunggah Gambar lokal Pelapor
-                    </span>
-                    <span className="text-[9px] font-medium text-neutral-400 block truncate max-w-[280px]">
-                      {customImageUrl.startsWith('data:') ? 'Format Base64 Media Terenkripsi' : customImageUrl}
-                    </span>
-                  </div>
+              {isCompressing ? (
+                <div className="flex items-center gap-2 pt-1 border-t border-dashed border-zinc-200 animate-pulse text-amber-600">
+                  <div className="h-5 w-5 rounded-full border-2 border-amber-500 border-t-transparent animate-spin shrink-0"></div>
+                  <span className="text-[10px] font-bold">
+                    Mengoptimasi & mengompres ukuran foto (agar pas di cloud)...
+                  </span>
                 </div>
+              ) : (
+                selectedImagePreset === 'custom' && customImageUrl && (
+                  <div className="flex items-center gap-2 pt-1 border-t border-dashed border-zinc-200">
+                    <div className="h-10 w-10 shrink-0 rounded-lg overflow-hidden border border-neutral-200 bg-white">
+                      <img
+                        src={customImageUrl}
+                        alt="Uploader preview"
+                        referrerPolicy="no-referrer"
+                        className="h-full w-full object-cover"
+                      />
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-extrabold text-emerald-600 flex items-center gap-1">
+                        <Check className="h-3 w-3 stroke-[3]" />
+                        Berhasil Mengunggah Gambar lokal Pelapor
+                      </span>
+                      <span className="text-[9px] font-medium text-neutral-400 block truncate max-w-[280px]">
+                        {customImageUrl.startsWith('data:') ? `Format Teroptimasi Cloud (${Math.round(customImageUrl.length / 1024)} KB)` : customImageUrl}
+                      </span>
+                    </div>
+                  </div>
+                )
               )}
             </div>
           </div>
@@ -617,9 +683,14 @@ export function ReportFormModal({ initialLat, initialLng, onClose, onSubmit }: R
             </button>
             <button
               type="submit"
-              className="px-5 py-2 text-xs font-extrabold rounded-lg bg-black hover:bg-neutral-900 text-white shadow-md flex items-center gap-1.5 cursor-pointer transition active:scale-95"
+              disabled={isCompressing}
+              className={`px-5 py-2 text-xs font-extrabold rounded-lg shadow-md flex items-center gap-1.5 transition active:scale-95 ${
+                isCompressing 
+                  ? 'bg-neutral-300 text-neutral-500 cursor-not-allowed'
+                  : 'bg-black hover:bg-neutral-900 text-white cursor-pointer'
+              }`}
             >
-              Mulai Terbitkan Laporan
+              {isCompressing ? 'Sedang Mengompres...' : 'Mulai Terbitkan Laporan'}
             </button>
           </div>
         </form>
