@@ -572,9 +572,9 @@ export function ReportFormModal({ initialLat, initialLng, onClose, onSubmit }: R
             </div>
           </div>
 
-          {/* Foto / Media Kerusakan */}
+          {/* Foto Kerusakan */}
           <div>
-            <label className="block text-[11px] font-bold text-neutral-500 uppercase tracking-wider mb-2 font-mono">Bukti Foto / Media Kerusakan</label>
+            <label className="block text-[11px] font-bold text-neutral-500 uppercase tracking-wider mb-2 font-mono">Bukti Foto Kerusakan (Otomatis Dikompresi)</label>
 
             {/* Upload File & Custom URL Options */}
             <div className="bg-zinc-50 border border-black/5 p-3 rounded-xl space-y-2.5">

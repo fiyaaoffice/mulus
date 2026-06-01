@@ -29,8 +29,8 @@ export function UserGuideModal({ onClose }: UserGuideModalProps) {
     },
     {
       icon: <Camera className="h-5 w-5 text-neutral-800" />,
-      title: '4. Pasang Foto / Video Bukti',
-      desc: 'Unggah file dokumentasi dari galeri handphone Anda atau input alamat URL tautan eksternal kustom untuk menyajikan bukti visual aspal berlubang di lapangan.'
+      title: '4. Pasang Foto Bukti',
+      desc: 'Unggah dokumentasi foto dari galeri handphone Anda. Foto tersebut akan dikompresi secara otomatis agar muat di cloud database Firestore tanpa mengurangi informasi detail, mendukung sinkronisasi instan yang hemat kuota internet.'
     },
     {
       icon: <Lock className="h-5 w-5 text-neutral-800" />,
